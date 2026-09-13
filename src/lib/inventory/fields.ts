@@ -2,6 +2,9 @@ import type { EntityKind, FirewallAction, FirewallProtocol, InventoryRecord, Rec
 
 export const APP_NAME = "NetAtlas";
 export const APP_TAGLINE = "سامانه مدیریت زیرساخت شبکه";
+export const APP_AUTHOR = "امین زیدی";
+export const APP_AUTHOR_ROLE = "سازنده و توسعه‌دهنده";
+export const APP_COPYRIGHT = "© امین زیدی — تمام حقوق محفوظ است";
 
 export type FieldKey = Exclude<
   keyof InventoryRecord,
