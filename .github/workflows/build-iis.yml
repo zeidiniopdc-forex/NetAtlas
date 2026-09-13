@@ -1,0 +1,50 @@
+name: Build for IIS (Offline Package)
+
+on:
+  workflow_dispatch:   # دستی اجرا می‌شود
+  push:
+    branches: [ main ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build project
+        run: npm run build
+        env:
+          NODE_ENV: production
+
+      - name: Prepare IIS package
+        run: |
+          mkdir -p iis-package
+          # کپی خروجی بیلد
+          cp -r .output/* iis-package/ 2>/dev/null || true
+          # کپی web.config مناسب IIS
+          cp iis/web.config iis-package/web.config
+          # ساخت پوشه لاگ
+          mkdir -p iis-package/logs
+          # اگر پوشه data وجود دارد
+          if [ -d "data" ]; then cp -r data iis-package/; fi
+          # اصلاح مسیر در web.config (برای ساختار نهایی)
+          sed -i 's|arguments="\.\\\.output\\server\\index\.mjs"|arguments=".\\server\\index.mjs"|g' iis-package/web.config || true
+          sed -i 's|arguments="\./\.output/server/index\.mjs"|arguments="./server/index.mjs"|g' iis-package/web.config || true
+
+      - name: Upload IIS package as artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: NetAtlas-IIS-Ready
+          path: iis-package/
+          retention-days: 14
