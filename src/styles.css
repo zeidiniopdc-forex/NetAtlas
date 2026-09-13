@@ -1,9 +1,40 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 
+/* Vazirmatn — local (offline) */
+@font-face {
+  font-family: "Vazirmatn";
+  src: url("/fonts/Vazirmatn-Regular.woff2") format("woff2");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Vazirmatn";
+  src: url("/fonts/Vazirmatn-Medium.woff2") format("woff2");
+  font-weight: 500;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Vazirmatn";
+  src: url("/fonts/Vazirmatn-SemiBold.woff2") format("woff2");
+  font-weight: 600;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Vazirmatn";
+  src: url("/fonts/Vazirmatn-Bold.woff2") format("woff2");
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+/* Default = dark theme tokens */
 @theme {
   --font-sans: "Vazirmatn", "Segoe UI", Tahoma, sans-serif;
-  --font-mono: "IBM Plex Mono", "Consolas", ui-monospace, monospace;
+  --font-mono: "Consolas", "Courier New", ui-monospace, monospace;
 
   --color-bg: #0b1014;
   --color-surface: #121a21;
@@ -24,6 +55,27 @@
   --radius-xl: 24px;
 
   --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/* Light theme overrides */
+html.theme-light {
+  --color-bg: #f4f7fa;
+  --color-surface: #ffffff;
+  --color-surface-2: #eef2f6;
+  --color-fg: #0f1720;
+  --color-muted: #5a6b7a;
+  --color-faint: #8a9aab;
+  --color-border: #d5dee8;
+  --color-accent: #0d9b88;
+  --color-accent-fg: #ffffff;
+  --color-danger: #c43c4a;
+  --color-warn: #b8860b;
+  --color-ok: #2f8f55;
+  color-scheme: light;
+}
+
+html.theme-dark {
+  color-scheme: dark;
 }
 
 @layer base {
