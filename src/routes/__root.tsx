@@ -6,7 +6,8 @@ import { PreviewHostBridge } from "@/components/preview-host-bridge";
 import { AppShell } from "@/components/layout/app-shell";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { AuthProvider } from "@/lib/auth/provider";
-import { APP_NAME, APP_TAGLINE } from "@/lib/inventory/fields";
+import { ThemeProvider } from "@/lib/theme/theme-provider";
+import { APP_AUTHOR, APP_NAME, APP_TAGLINE } from "@/lib/inventory/fields";
 import appCss from "../styles.css?url";
 
 export const Route = createRootRoute({
@@ -16,6 +17,7 @@ export const Route = createRootRoute({
       { name: "viewport", content: "width=device-width, initial-scale=1" },
       { title: `${APP_NAME} — ${APP_TAGLINE}` },
       { name: "description", content: APP_TAGLINE },
+      { name: "author", content: APP_AUTHOR },
       { name: "theme-color", content: "#0b1014" },
     ],
     links: [
@@ -23,10 +25,6 @@ export const Route = createRootRoute({
       { rel: "stylesheet", href: appCss },
       { rel: "manifest", href: "/__grok/manifest.webmanifest" },
       { rel: "apple-touch-icon", href: "/__grok/icon-180.png" },
-      {
-        rel: "stylesheet",
-        href: "https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Vazirmatn:wght@400;500;600;700&display=swap",
-      },
     ],
   }),
   component: Root,
@@ -41,33 +39,35 @@ function Root() {
   );
 
   return (
-    <html lang="fa" dir="rtl" className="antialiased" suppressHydrationWarning>
+    <html lang="fa" dir="rtl" className="theme-dark antialiased" suppressHydrationWarning>
       <head>
         <HeadContent />
       </head>
       <body>
         <PreviewHostBridge />
-        <AuthProvider>
-          <QueryClientProvider client={queryClient}>
-            <TooltipProvider delayDuration={200}>
-              <AppShell>
-                <Outlet />
-              </AppShell>
-              <Toaster
-                theme="dark"
-                position="top-center"
-                toastOptions={{
-                  style: {
-                    background: "#18232c",
-                    border: "1px solid #24313c",
-                    color: "#e8eef2",
-                    fontFamily: "Vazirmatn, sans-serif",
-                  },
-                }}
-              />
-            </TooltipProvider>
-          </QueryClientProvider>
-        </AuthProvider>
+        <ThemeProvider>
+          <AuthProvider>
+            <QueryClientProvider client={queryClient}>
+              <TooltipProvider delayDuration={200}>
+                <AppShell>
+                  <Outlet />
+                </AppShell>
+                <Toaster
+                  theme="system"
+                  position="top-center"
+                  toastOptions={{
+                    style: {
+                      background: "var(--color-surface-2)",
+                      border: "1px solid var(--color-border)",
+                      color: "var(--color-fg)",
+                      fontFamily: "Vazirmatn, sans-serif",
+                    },
+                  }}
+                />
+              </TooltipProvider>
+            </QueryClientProvider>
+          </AuthProvider>
+        </ThemeProvider>
         <Scripts />
       </body>
     </html>
