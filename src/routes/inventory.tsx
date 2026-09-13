@@ -1,5 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { Plus, Search } from "lucide-react";
+import { Pencil, Plus, Search } from "lucide-react";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
 import { RecordForm } from "@/components/inventory/record-form";
@@ -19,13 +19,16 @@ function InventoryPage() {
   const { data, isLoading } = useInventory();
   const { upsert } = useInventoryMutations();
   const [q, setQ] = useState("");
-  const [open, setOpen] = useState(false);
+  const [createOpen, setCreateOpen] = useState(false);
+  const [editing, setEditing] = useState<InventoryRecord | null>(null);
 
   const rows = useMemo(() => {
     const list = data?.records ?? [];
     if (!q.trim()) return list;
     return list.filter((r) => recordMatches(r, q));
   }, [data, q]);
+
+  const colSpan = TABLE_COLUMNS.length + 2;
 
   return (
     <div className="flex flex-col gap-5">
@@ -39,9 +42,14 @@ function InventoryPage() {
         <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row">
           <div className="relative sm:w-72">
             <Search className="pointer-events-none absolute start-3 top-1/2 size-4 -translate-y-1/2 text-faint" />
-            <Input className="ps-9" value={q} onChange={(e) => setQ(e.target.value)} placeholder="فیلتر جدول" />
+            <Input
+              className="ps-9"
+              value={q}
+              onChange={(e) => setQ(e.target.value)}
+              placeholder="فیلتر جدول"
+            />
           </div>
-          <Button onClick={() => setOpen(true)}>
+          <Button onClick={() => setCreateOpen(true)}>
             <Plus className="size-4" />
             رکورد جدید
           </Button>
@@ -58,41 +66,44 @@ function InventoryPage() {
                 </th>
               ))}
               <th className="px-3 py-3 text-start font-medium">فایروال</th>
+              <th className="px-3 py-3 text-start font-medium">عملیات</th>
             </tr>
           </thead>
           <tbody>
             {isLoading ? (
               <tr>
-                <td colSpan={TABLE_COLUMNS.length + 1} className="px-3 py-10 text-center text-muted">
+                <td colSpan={colSpan} className="px-3 py-10 text-center text-muted">
                   در حال بارگذاری…
                 </td>
               </tr>
             ) : rows.length === 0 ? (
               <tr>
-                <td colSpan={TABLE_COLUMNS.length + 1} className="px-3 py-10 text-center text-muted">
+                <td colSpan={colSpan} className="px-3 py-10 text-center text-muted">
                   رکوردی نیست. از ورود اکسل استفاده کنید یا رکورد جدید بسازید.
                 </td>
               </tr>
             ) : (
-              rows.map((r) => <Row key={r.id} record={r} />)
+              rows.map((r) => (
+                <Row key={r.id} record={r} onEdit={() => setEditing(r)} />
+              ))
             )}
           </tbody>
         </table>
       </div>
 
-      <Dialog open={open} onOpenChange={setOpen}>
+      <Dialog open={createOpen} onOpenChange={setCreateOpen}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>رکورد جدید</DialogTitle>
           </DialogHeader>
           <RecordForm
             busy={upsert.isPending}
-            onCancel={() => setOpen(false)}
+            onCancel={() => setCreateOpen(false)}
             onSubmit={(record) => {
               upsert.mutate(record, {
                 onSuccess: () => {
                   toast.success("روی فایل JSON سرور ذخیره شد");
-                  setOpen(false);
+                  setCreateOpen(false);
                 },
                 onError: () => toast.error("ذخیره انجام نشد"),
               });
@@ -100,11 +111,41 @@ function InventoryPage() {
           />
         </DialogContent>
       </Dialog>
+
+      <Dialog open={!!editing} onOpenChange={(o) => !o && setEditing(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>ویرایش رکورد</DialogTitle>
+          </DialogHeader>
+          {editing ? (
+            <RecordForm
+              initial={editing}
+              busy={upsert.isPending}
+              onCancel={() => setEditing(null)}
+              onSubmit={(record) => {
+                upsert.mutate(record, {
+                  onSuccess: () => {
+                    toast.success("تغییرات روی JSON سرور ذخیره شد");
+                    setEditing(null);
+                  },
+                  onError: () => toast.error("ذخیره انجام نشد"),
+                });
+              }}
+            />
+          ) : null}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
 
-function Row({ record }: { record: InventoryRecord }) {
+function Row({
+  record,
+  onEdit,
+}: {
+  record: InventoryRecord;
+  onEdit: () => void;
+}) {
   return (
     <tr className="border-t border-border hover:bg-surface-2/60">
       {TABLE_COLUMNS.map((c) => (
@@ -132,6 +173,19 @@ function Row({ record }: { record: InventoryRecord }) {
         {record.firewallAccess.length
           ? record.firewallAccess.map((f) => f.service).join("، ")
           : "—"}
+      </td>
+      <td className="px-3 py-2.5">
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon"
+          className="size-8"
+          onClick={onEdit}
+          aria-label="ویرایش"
+          title="ویرایش"
+        >
+          <Pencil className="size-4" />
+        </Button>
       </td>
     </tr>
   );
