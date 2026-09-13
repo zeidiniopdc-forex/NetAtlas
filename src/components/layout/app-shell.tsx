@@ -4,15 +4,24 @@ import {
   Command,
   LayoutDashboard,
   Menu,
+  Moon,
   Search,
   Shield,
+  Sun,
   Table2,
   Upload,
   X,
 } from "lucide-react";
 import { useState, type ReactNode } from "react";
 import { Button } from "@/components/ui/button";
-import { APP_NAME, APP_TAGLINE } from "@/lib/inventory/fields";
+import {
+  APP_AUTHOR,
+  APP_AUTHOR_ROLE,
+  APP_COPYRIGHT,
+  APP_NAME,
+  APP_TAGLINE,
+} from "@/lib/inventory/fields";
+import { useTheme } from "@/lib/theme/theme-provider";
 import { cn } from "@/lib/utils";
 
 const NAV = [
@@ -27,6 +36,7 @@ const NAV = [
 export function AppShell({ children }: { children: ReactNode }) {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const [open, setOpen] = useState(false);
+  const { theme, toggleTheme } = useTheme();
 
   return (
     <div className="min-h-dvh bg-bg text-fg">
@@ -38,9 +48,17 @@ export function AppShell({ children }: { children: ReactNode }) {
               <NavLink key={item.to} {...item} active={isActive(pathname, item.to)} />
             ))}
           </nav>
-          <p className="text-[11px] leading-relaxed text-faint">
-            داده روی سرور در فایل JSON ذخیره می‌شود و از طریق شبکه قابل ویرایش است.
-          </p>
+          <div className="mt-auto space-y-2 border-t border-border pt-3">
+            <p className="text-[11px] leading-relaxed text-faint">
+              داده روی سرور در فایل JSON ذخیره می‌شود و از طریق شبکه قابل ویرایش است.
+            </p>
+            <p className="text-[11px] leading-relaxed text-muted">
+              <span className="font-medium text-fg">{APP_AUTHOR}</span>
+              <br />
+              {APP_AUTHOR_ROLE}
+            </p>
+            <p className="text-[10px] text-faint">{APP_COPYRIGHT}</p>
+          </div>
         </aside>
 
         <div className="flex min-w-0 flex-1 flex-col">
@@ -58,30 +76,50 @@ export function AppShell({ children }: { children: ReactNode }) {
               <Cable className="size-4 shrink-0 text-accent" />
               <span className="truncate">مدیریت نود، پچ‌پنل، سوئیچ، IP و دسترسی فایروال</span>
             </div>
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={toggleTheme}
+              aria-label={theme === "dark" ? "تم روشن" : "تم تیره"}
+              title={theme === "dark" ? "تم روشن" : "تم تیره"}
+            >
+              {theme === "dark" ? <Sun className="size-5" /> : <Moon className="size-5" />}
+            </Button>
             <Link
               to="/search"
               search={{ q: "" }}
-              className="hidden h-10 items-center gap-2 rounded-md border border-border bg-surface px-3 text-sm text-muted hover:text-fg sm:flex"
+              className="hidden h-10 items-center gap-2 rounded-md border border-border bg-surface px-3 text-sm text-muted transition hover:border-accent/40 hover:text-fg sm:inline-flex"
             >
               <Search className="size-4" />
-              جستجوی هر آیتم…
+              جستجو
             </Link>
           </header>
 
           <main className="flex-1 px-4 py-5 md:px-6 md:py-6">{children}</main>
+
+          <footer className="border-t border-border px-4 py-4 text-center text-[11px] text-faint md:px-6">
+            <p>
+              <span className="text-muted">{APP_NAME}</span>
+              {" — "}
+              ساخته و توسعه‌یافته توسط{" "}
+              <span className="font-medium text-fg">{APP_AUTHOR}</span>
+            </p>
+            <p className="mt-1">{APP_COPYRIGHT}</p>
+          </footer>
         </div>
       </div>
 
       {open ? (
-        <div className="fixed inset-0 z-40 md:hidden">
+        <div className="fixed inset-0 z-50 md:hidden">
           <button
-            className="absolute inset-0 bg-bg/70"
+            type="button"
+            className="absolute inset-0 bg-black/50"
             aria-label="بستن منو"
             onClick={() => setOpen(false)}
           />
-          <div className="absolute inset-y-0 start-0 flex w-[min(84vw,280px)] flex-col bg-surface p-4 shadow-xl">
+          <div className="absolute inset-y-0 start-0 flex w-72 flex-col border-e border-border bg-surface p-4 shadow-xl">
             <div className="mb-4 flex items-center justify-between">
-              <Brand compact />
+              <Brand />
               <Button variant="ghost" size="icon" onClick={() => setOpen(false)} aria-label="بستن">
                 <X className="size-5" />
               </Button>
@@ -92,10 +130,20 @@ export function AppShell({ children }: { children: ReactNode }) {
                   key={item.to}
                   {...item}
                   active={isActive(pathname, item.to)}
-                  onClick={() => setOpen(false)}
+                  onNavigate={() => setOpen(false)}
                 />
               ))}
             </nav>
+            <div className="mt-auto space-y-2 border-t border-border pt-3">
+              <Button variant="secondary" className="w-full justify-start gap-2" onClick={toggleTheme}>
+                {theme === "dark" ? <Sun className="size-4" /> : <Moon className="size-4" />}
+                {theme === "dark" ? "تم روشن" : "تم تیره"}
+              </Button>
+              <p className="text-[11px] text-muted">
+                {APP_AUTHOR} — {APP_AUTHOR_ROLE}
+              </p>
+              <p className="text-[10px] text-faint">{APP_COPYRIGHT}</p>
+            </div>
           </div>
         </div>
       ) : null}
@@ -103,18 +151,11 @@ export function AppShell({ children }: { children: ReactNode }) {
   );
 }
 
-function Brand({ compact = false }: { compact?: boolean }) {
+function Brand() {
   return (
-    <Link to="/" className="flex items-center gap-3">
-      <span className="grid size-9 place-items-center rounded-md bg-accent text-accent-fg">
-        <Cable className="size-5" />
-      </span>
-      <span className="min-w-0">
-        <span className="block font-medium leading-tight">{APP_NAME}</span>
-        {compact ? null : (
-          <span className="block text-[11px] text-muted">{APP_TAGLINE}</span>
-        )}
-      </span>
+    <Link to="/" className="block">
+      <div className="text-lg font-semibold tracking-tight text-fg">{APP_NAME}</div>
+      <div className="text-[11px] text-muted">{APP_TAGLINE}</div>
     </Link>
   );
 }
@@ -124,24 +165,26 @@ function NavLink({
   label,
   icon: Icon,
   active,
-  onClick,
+  onNavigate,
 }: {
-  to: string;
+  to: (typeof NAV)[number]["to"];
   label: string;
-  icon: typeof Search;
+  icon: (typeof NAV)[number]["icon"];
   active: boolean;
-  onClick?: () => void;
+  onNavigate?: () => void;
 }) {
   return (
     <Link
       to={to}
-      onClick={onClick}
+      onClick={onNavigate}
       className={cn(
-        "flex h-11 items-center gap-3 rounded-md px-3 text-sm transition-colors",
-        active ? "bg-surface-2 text-fg" : "text-muted hover:bg-surface-2 hover:text-fg",
+        "flex items-center gap-2 rounded-md px-3 py-2 text-sm transition",
+        active
+          ? "bg-accent/15 font-medium text-accent"
+          : "text-muted hover:bg-surface-2 hover:text-fg",
       )}
     >
-      <Icon className={cn("size-4", active && "text-accent")} />
+      <Icon className="size-4 shrink-0" />
       {label}
     </Link>
   );
