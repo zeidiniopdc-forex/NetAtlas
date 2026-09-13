@@ -19,12 +19,22 @@ jobs:
           node-version: '22'
           cache: 'npm'
 
+      - name: Download Vazirmatn fonts (offline-safe)
+        run: |
+          mkdir -p public/fonts
+          curl -sL -o /tmp/vazirmatn.zip "https://github.com/rastikerdar/vazirmatn/releases/download/v33.003/vazirmatn-v33.003.zip"
+          unzip -o -q /tmp/vazirmatn.zip "fonts/webfonts/Vazirmatn-Regular.woff2" "fonts/webfonts/Vazirmatn-Medium.woff2" "fonts/webfonts/Vazirmatn-SemiBold.woff2" "fonts/webfonts/Vazirmatn-Bold.woff2" -d /tmp/vazir
+          cp /tmp/vazir/fonts/webfonts/Vazirmatn-Regular.woff2 public/fonts/
+          cp /tmp/vazir/fonts/webfonts/Vazirmatn-Medium.woff2 public/fonts/
+          cp /tmp/vazir/fonts/webfonts/Vazirmatn-SemiBold.woff2 public/fonts/
+          cp /tmp/vazir/fonts/webfonts/Vazirmatn-Bold.woff2 public/fonts/
+          ls -la public/fonts/
+
       - name: Install dependencies
         run: npm ci
 
       - name: Build for Node.js (IIS)
         run: |
-          # موقتاً preset را به node-server تغییر می‌دهیم تا خروجی مناسب IIS ساخته شود
           sed -i 's/preset: "vercel"/preset: "node-server"/g' vite.config.ts
           npm run build
         env:
@@ -37,13 +47,12 @@ jobs:
           echo "=== Looking for .output ==="
           ls -la .output 2>/dev/null || echo "No .output folder"
           ls -la .output/server 2>/dev/null || echo "No .output/server"
-          echo "=== Looking for .vercel ==="
-          ls -la .vercel 2>/dev/null || echo "No .vercel folder"
+          ls -la .output/public/fonts 2>/dev/null || ls -la public/fonts 2>/dev/null || true
 
       - name: Prepare IIS package
         run: |
           mkdir -p iis-package
-          
+
           if [ -d ".output" ]; then
             echo "Using .output folder"
             cp -r .output/* iis-package/
@@ -54,25 +63,32 @@ jobs:
             echo "ERROR: No build output found!"
             exit 1
           fi
-          
-          # کپی web.config
+
+          # Ensure fonts are in package (under public or root)
+          mkdir -p iis-package/public/fonts
+          if [ -d "public/fonts" ]; then
+            cp -r public/fonts/* iis-package/public/fonts/ 2>/dev/null || true
+            mkdir -p iis-package/fonts
+            cp -r public/fonts/* iis-package/fonts/ 2>/dev/null || true
+          fi
+
           cp iis/web.config iis-package/web.config
-          
-          # ساخت پوشه لاگ
           mkdir -p iis-package/logs
-          
-          # کپی data اگر وجود دارد
+
           if [ -d "data" ]; then
             cp -r data iis-package/
           fi
-          
-          # اصلاح مسیر در web.config
-          sed -i 's|arguments="\.\\\.output\\server\\index\.mjs"|arguments=".\\server\\index.mjs"|g' iis-package/web.config || true
-          sed -i 's|arguments="\./\.output/server/index\.mjs"|arguments="./server/index.mjs"|g' iis-package/web.config || true
-          sed -i 's|arguments="\.\\server\\index\.mjs"|arguments=".\\server\\index.mjs"|g' iis-package/web.config || true
-          
+
+          sed -i 's|arguments="\\.\\\\.output\\\\server\\\\index\\.mjs"|arguments=".\\server\\index.mjs"|g' iis-package/web.config || true
+          sed -i 's|arguments="\\./\\.output/server/index\\.mjs"|arguments="./server/index.mjs"|g' iis-package/web.config || true
+
+          # Ensure NODE_SKIP_PLATFORM_CHECK for older Windows Server
+          if ! grep -q NODE_SKIP_PLATFORM_CHECK iis-package/web.config; then
+            sed -i 's|</environmentVariables>|<environmentVariable name="NODE_SKIP_PLATFORM_CHECK" value="1" />\n      </environmentVariables>|' iis-package/web.config || true
+          fi
+
           echo "=== Final package contents ==="
-          find iis-package -type f | head -50
+          find iis-package -type f | head -80
 
       - name: Upload IIS package
         uses: actions/upload-artifact@v4
