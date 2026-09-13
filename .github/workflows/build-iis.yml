@@ -1,7 +1,7 @@
 name: Build for IIS (Offline Package)
 
 on:
-  workflow_dispatch:   # دستی اجرا می‌شود
+  workflow_dispatch:
   push:
     branches: [ main ]
 
@@ -22,29 +22,62 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Build project
-        run: npm run build
+      - name: Build for Node.js (IIS)
+        run: |
+          # موقتاً preset را به node-server تغییر می‌دهیم تا خروجی مناسب IIS ساخته شود
+          sed -i 's/preset: "vercel"/preset: "node-server"/g' vite.config.ts
+          npm run build
         env:
           NODE_ENV: production
+
+      - name: Show build output (debug)
+        run: |
+          echo "=== Listing root ==="
+          ls -la
+          echo "=== Looking for .output ==="
+          ls -la .output 2>/dev/null || echo "No .output folder"
+          ls -la .output/server 2>/dev/null || echo "No .output/server"
+          echo "=== Looking for .vercel ==="
+          ls -la .vercel 2>/dev/null || echo "No .vercel folder"
 
       - name: Prepare IIS package
         run: |
           mkdir -p iis-package
-          # کپی خروجی بیلد
-          cp -r .output/* iis-package/ 2>/dev/null || true
-          # کپی web.config مناسب IIS
+          
+          if [ -d ".output" ]; then
+            echo "Using .output folder"
+            cp -r .output/* iis-package/
+          elif [ -d ".vercel/output" ]; then
+            echo "Using .vercel/output folder"
+            cp -r .vercel/output/* iis-package/
+          else
+            echo "ERROR: No build output found!"
+            exit 1
+          fi
+          
+          # کپی web.config
           cp iis/web.config iis-package/web.config
+          
           # ساخت پوشه لاگ
           mkdir -p iis-package/logs
-          # اگر پوشه data وجود دارد
-          if [ -d "data" ]; then cp -r data iis-package/; fi
-          # اصلاح مسیر در web.config (برای ساختار نهایی)
+          
+          # کپی data اگر وجود دارد
+          if [ -d "data" ]; then
+            cp -r data iis-package/
+          fi
+          
+          # اصلاح مسیر در web.config
           sed -i 's|arguments="\.\\\.output\\server\\index\.mjs"|arguments=".\\server\\index.mjs"|g' iis-package/web.config || true
           sed -i 's|arguments="\./\.output/server/index\.mjs"|arguments="./server/index.mjs"|g' iis-package/web.config || true
+          sed -i 's|arguments="\.\\server\\index\.mjs"|arguments=".\\server\\index.mjs"|g' iis-package/web.config || true
+          
+          echo "=== Final package contents ==="
+          find iis-package -type f | head -50
 
-      - name: Upload IIS package as artifact
+      - name: Upload IIS package
         uses: actions/upload-artifact@v4
         with:
           name: NetAtlas-IIS-Ready
           path: iis-package/
           retention-days: 14
+          if-no-files-found: error
