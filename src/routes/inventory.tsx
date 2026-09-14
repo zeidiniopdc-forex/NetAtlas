@@ -12,12 +12,14 @@ import { recordMatches } from "@/lib/inventory/relations";
 import { useInventory, useInventoryMutations } from "@/lib/inventory/query";
 import type { InventoryRecord } from "@/lib/inventory/types";
 import { cn } from "@/lib/utils";
+import { useAccess } from "@/lib/access/session";
 
 export const Route = createFileRoute("/inventory")({ component: InventoryPage });
 
 function InventoryPage() {
   const { data, isLoading } = useInventory();
   const { upsert } = useInventoryMutations();
+  const { canEdit } = useAccess();
   const [q, setQ] = useState("");
   const [createOpen, setCreateOpen] = useState(false);
   const [editing, setEditing] = useState<InventoryRecord | null>(null);
@@ -49,10 +51,12 @@ function InventoryPage() {
               placeholder="فیلتر جدول"
             />
           </div>
+          {canEdit ? (
           <Button onClick={() => setCreateOpen(true)}>
             <Plus className="size-4" />
             رکورد جدید
           </Button>
+          ) : null}
         </div>
       </div>
 
@@ -84,7 +88,7 @@ function InventoryPage() {
               </tr>
             ) : (
               rows.map((r) => (
-                <Row key={r.id} record={r} onEdit={() => setEditing(r)} />
+                <Row key={r.id} record={r} canEdit={canEdit} onEdit={() => setEditing(r)} />
               ))
             )}
           </tbody>
@@ -142,9 +146,11 @@ function InventoryPage() {
 function Row({
   record,
   onEdit,
+  canEdit,
 }: {
   record: InventoryRecord;
   onEdit: () => void;
+  canEdit: boolean;
 }) {
   return (
     <tr className="border-t border-border hover:bg-surface-2/60">
@@ -175,6 +181,7 @@ function Row({
           : "—"}
       </td>
       <td className="px-3 py-2.5">
+        {canEdit ? (
         <Button
           type="button"
           variant="ghost"
@@ -186,6 +193,9 @@ function Row({
         >
           <Pencil className="size-4" />
         </Button>
+        ) : (
+          <span className="text-xs text-faint">—</span>
+        )}
       </td>
     </tr>
   );
