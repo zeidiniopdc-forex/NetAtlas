@@ -7,6 +7,7 @@ import { AppShell } from "@/components/layout/app-shell";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { AuthProvider } from "@/lib/auth/provider";
 import { ThemeProvider } from "@/lib/theme/theme-provider";
+import { AccessProvider } from "@/lib/access/session";
 import { APP_AUTHOR, APP_NAME, APP_TAGLINE } from "@/lib/inventory/fields";
 import appCss from "../styles.css?url";
 
@@ -48,23 +49,25 @@ function Root() {
         <ThemeProvider>
           <AuthProvider>
             <QueryClientProvider client={queryClient}>
-              <TooltipProvider delayDuration={200}>
-                <AppShell>
-                  <Outlet />
-                </AppShell>
-                <Toaster
-                  theme="system"
-                  position="top-center"
-                  toastOptions={{
-                    style: {
-                      background: "var(--color-surface-2)",
-                      border: "1px solid var(--color-border)",
-                      color: "var(--color-fg)",
-                      fontFamily: "Vazirmatn, sans-serif",
-                    },
-                  }}
-                />
-              </TooltipProvider>
+              <AccessProvider>
+                <TooltipProvider delayDuration={200}>
+                  <AppShell>
+                    <Outlet />
+                  </AppShell>
+                  <Toaster
+                    theme="system"
+                    position="top-center"
+                    toastOptions={{
+                      style: {
+                        background: "var(--color-surface-2)",
+                        border: "1px solid var(--color-border)",
+                        color: "var(--color-fg)",
+                        fontFamily: "Vazirmatn, sans-serif",
+                      },
+                    }}
+                  />
+                </TooltipProvider>
+              </AccessProvider>
             </QueryClientProvider>
           </AuthProvider>
         </ThemeProvider>
