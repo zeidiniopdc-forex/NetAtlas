@@ -1,8 +1,5 @@
 import { createServerFn } from "@tanstack/react-start";
-import { getCookie, setCookie } from "@tanstack/react-start/server";
-import { hashPassword, newId, newToken, verifyPassword } from "./crypto";
 import { ALL_PAGES, DEFAULT_ROLE_PERMISSIONS } from "./permissions";
-import { readAccessStore, writeAccessStore } from "./store.server";
 import type {
   AccessUser,
   PageKey,
@@ -25,32 +22,28 @@ function toPublic(u: AccessUser): PublicUser {
   };
 }
 
-function permsFor(role: Role, store: Awaited<ReturnType<typeof readAccessStore>>): RolePermissions {
+function permsFor(
+  role: Role,
+  store: { rolePermissions: Record<Role, RolePermissions> },
+): RolePermissions {
   if (role === "admin") {
     return { pages: [...ALL_PAGES], canEdit: true };
   }
   return store.rolePermissions.user ?? DEFAULT_ROLE_PERMISSIONS.user;
 }
 
-async function sessionFromCookie(): Promise<SessionInfo | null> {
-  const token = getCookie(COOKIE);
-  if (!token) return null;
-  const store = await readAccessStore();
-  const session = store.sessions.find((s) => s.token === token);
-  if (!session) return null;
-  if (new Date(session.expiresAt).getTime() < Date.now()) return null;
-  const user = store.users.find((u) => u.id === session.userId && u.active);
-  if (!user) return null;
-  return { user: toPublic(user), permissions: permsFor(user.role, store) };
-}
-
 export const getSession = createServerFn({ method: "GET" }).handler(async () => {
+  const { sessionFromCookie } = await import("./session.server");
   return sessionFromCookie();
 });
 
 export const login = createServerFn({ method: "POST" })
   .validator((data: { username: string; password: string }) => data)
   .handler(async ({ data }) => {
+    const { setCookie } = await import("@tanstack/react-start/server");
+    const { readAccessStore, writeAccessStore } = await import("./store.server");
+    const { newToken, verifyPassword } = await import("./crypto.server");
+
     const username = data.username.trim().toLowerCase();
     const store = await writeAccessStore((s) => s);
     const user = store.users.find(
@@ -82,6 +75,8 @@ export const login = createServerFn({ method: "POST" })
   });
 
 export const logout = createServerFn({ method: "POST" }).handler(async () => {
+  const { getCookie, setCookie } = await import("@tanstack/react-start/server");
+  const { writeAccessStore } = await import("./store.server");
   const token = getCookie(COOKIE);
   if (token) {
     await writeAccessStore((s) => ({
@@ -94,8 +89,10 @@ export const logout = createServerFn({ method: "POST" }).handler(async () => {
 });
 
 export const listUsers = createServerFn({ method: "GET" }).handler(async () => {
+  const { sessionFromCookie } = await import("./session.server");
   const session = await sessionFromCookie();
   if (!session || session.user.role !== "admin") throw new Error("دسترسی غیرمجاز");
+  const { readAccessStore } = await import("./store.server");
   const store = await readAccessStore();
   return {
     users: store.users.map(toPublic),
@@ -115,8 +112,11 @@ export const saveUser = createServerFn({ method: "POST" })
     }) => data,
   )
   .handler(async ({ data }) => {
+    const { sessionFromCookie } = await import("./session.server");
     const session = await sessionFromCookie();
     if (!session || session.user.role !== "admin") throw new Error("دسترسی غیرمجاز");
+    const { writeAccessStore, readAccessStore } = await import("./store.server");
+    const { hashPassword, newId } = await import("./crypto.server");
     const username = data.username.trim().toLowerCase();
     if (!username) throw new Error("نام کاربری الزامی است");
 
@@ -160,14 +160,20 @@ export const saveUser = createServerFn({ method: "POST" })
       }
       return { ...s, users };
     });
-    return listUsers();
+    const store = await readAccessStore();
+    return {
+      users: store.users.map(toPublic),
+      rolePermissions: store.rolePermissions,
+    };
   });
 
 export const deleteUser = createServerFn({ method: "POST" })
   .validator((data: { id: string }) => data)
   .handler(async ({ data }) => {
+    const { sessionFromCookie } = await import("./session.server");
     const session = await sessionFromCookie();
     if (!session || session.user.role !== "admin") throw new Error("دسترسی غیرمجاز");
+    const { writeAccessStore, readAccessStore } = await import("./store.server");
     await writeAccessStore((s) => {
       const target = s.users.find((u) => u.id === data.id);
       if (!target) throw new Error("کاربر پیدا نشد");
@@ -182,14 +188,20 @@ export const deleteUser = createServerFn({ method: "POST" })
         sessions: s.sessions.filter((x) => x.userId !== data.id),
       };
     });
-    return listUsers();
+    const store = await readAccessStore();
+    return {
+      users: store.users.map(toPublic),
+      rolePermissions: store.rolePermissions,
+    };
   });
 
 export const updateUserRolePermissions = createServerFn({ method: "POST" })
   .validator((data: { pages: PageKey[]; canEdit: boolean }) => data)
   .handler(async ({ data }) => {
+    const { sessionFromCookie } = await import("./session.server");
     const session = await sessionFromCookie();
     if (!session || session.user.role !== "admin") throw new Error("دسترسی غیرمجاز");
+    const { writeAccessStore, readAccessStore } = await import("./store.server");
     const pages = data.pages.filter((p) => ALL_PAGES.includes(p) && p !== "users");
     await writeAccessStore((s) => ({
       ...s,
@@ -199,31 +211,17 @@ export const updateUserRolePermissions = createServerFn({ method: "POST" })
         user: { pages, canEdit: Boolean(data.canEdit) },
       },
     }));
-    return listUsers();
+    const store = await readAccessStore();
+    return {
+      users: store.users.map(toPublic),
+      rolePermissions: store.rolePermissions,
+    };
   });
-
-export const requireEditAccess = async () => {
-  const session = await sessionFromCookie();
-  if (!session) throw new Error("لطفاً وارد شوید");
-  if (!session.permissions.canEdit && session.user.role !== "admin") {
-    throw new Error("شما اجازه ویرایش ندارید");
-  }
-  return session;
-};
-
-export const requirePageAccess = async (page: PageKey) => {
-  const session = await sessionFromCookie();
-  if (!session) throw new Error("لطفاً وارد شوید");
-  if (session.user.role === "admin") return session;
-  if (!session.permissions.pages.includes(page)) {
-    throw new Error("به این بخش دسترسی ندارید");
-  }
-  return session;
-};
 
 export const importInventoryJson = createServerFn({ method: "POST" })
   .validator((data: { jsonText: string; mode: "merge" | "replace" }) => data)
   .handler(async ({ data }) => {
+    const { requireEditAccess } = await import("./session.server");
     await requireEditAccess();
     let parsed: unknown;
     try {
@@ -247,7 +245,9 @@ export const importInventoryJson = createServerFn({ method: "POST" })
 function extractRecords(parsed: unknown) {
   if (!parsed || typeof parsed !== "object") return null;
   const obj = parsed as Record<string, unknown>;
-  if (Array.isArray(obj.records)) return obj.records as import("@/lib/inventory/types").InventoryRecord[];
-  if (Array.isArray(parsed)) return parsed as import("@/lib/inventory/types").InventoryRecord[];
+  if (Array.isArray(obj.records))
+    return obj.records as import("@/lib/inventory/types").InventoryRecord[];
+  if (Array.isArray(parsed))
+    return parsed as import("@/lib/inventory/types").InventoryRecord[];
   return null;
 }

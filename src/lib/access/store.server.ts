@@ -1,7 +1,7 @@
 import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { DEFAULT_ROLE_PERMISSIONS } from "./permissions";
-import { hashPassword, newId } from "./crypto";
+import { hashPassword, newId } from "./crypto.server";
 import type { AccessStore } from "./types";
 
 const FILE_NAME = "access.json";

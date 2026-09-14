@@ -1,5 +1,4 @@
 import { createServerFn } from "@tanstack/react-start";
-import { requireEditAccess } from "@/lib/access/actions";
 import { buildRelations, computeStats } from "./relations";
 import type { InventoryRecord } from "./types";
 
@@ -26,6 +25,7 @@ export const searchInventory = createServerFn({ method: "POST" })
 export const upsertRecord = createServerFn({ method: "POST" })
   .validator((data: InventoryRecord) => data)
   .handler(async ({ data }) => {
+    const { requireEditAccess } = await import("@/lib/access/session.server");
     await requireEditAccess();
     const { writeStore } = await import("./store.server");
     const now = new Date().toISOString();
@@ -47,6 +47,7 @@ export const upsertRecord = createServerFn({ method: "POST" })
 export const removeRecord = createServerFn({ method: "POST" })
   .validator((data: { id: string }) => data)
   .handler(async ({ data }) => {
+    const { requireEditAccess } = await import("@/lib/access/session.server");
     await requireEditAccess();
     const { writeStore } = await import("./store.server");
     const store = await writeStore((s) => ({
@@ -59,6 +60,7 @@ export const removeRecord = createServerFn({ method: "POST" })
 export const importRecords = createServerFn({ method: "POST" })
   .validator((data: { records: InventoryRecord[]; mode: "merge" | "replace" }) => data)
   .handler(async ({ data }) => {
+    const { requireEditAccess } = await import("@/lib/access/session.server");
     await requireEditAccess();
     const { writeStore } = await import("./store.server");
     const { mergeRecords } = await import("./excel");
@@ -71,6 +73,7 @@ export const importRecords = createServerFn({ method: "POST" })
   });
 
 export const resetSeed = createServerFn({ method: "POST" }).handler(async () => {
+  const { requireEditAccess } = await import("@/lib/access/session.server");
   await requireEditAccess();
   const { writeStore } = await import("./store.server");
   const { createSeedStore } = await import("./seed");
