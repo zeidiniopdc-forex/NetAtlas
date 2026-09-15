@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import { toast } from "sonner";
 import { NetworkAssetsPanel } from "@/components/network/network-assets-panel";
 import { NetworkPortPanel } from "@/components/network/network-port-panel";
+import { NetworkTopologyPanel } from "@/components/network/network-topology-panel";
 import { NetworkVlanPanel } from "@/components/network/network-vlan-panel";
 import { RecordForm } from "@/components/inventory/record-form";
 import { Badge } from "@/components/ui/badge";
@@ -57,6 +58,7 @@ function InventoryPage() {
       </div>
 
       <NetworkVlanPanel records={records} />
+      <NetworkTopologyPanel />
 
       <Card className="rounded-lg"><CardHeader className="pb-2"><CardTitle className="text-sm">دارایی‌های استخراج‌شده از موجودی</CardTitle><p className="text-xs text-muted">نمایش نرمال‌شده تجهیزات و محل‌های زیرساختی از رکوردهای فعلی</p></CardHeader><CardContent><div className="grid gap-2 sm:grid-cols-5">{(["switch", "router", "firewall", "rack", "serverRoom"] as const).map((kind) => <div key={kind} className="rounded-md border border-border p-3"><div className="text-xs text-muted">{assetKindLabel(kind)}</div><div className="mt-1 text-xl font-semibold tabular-nums">{assets.byKind[kind].toLocaleString("fa-IR")}</div></div>)}</div>{assets.duplicateManagementIps.length > 0 ? <div className="mt-3 flex items-start gap-2 rounded-md border border-border p-3 text-sm text-warn"><AlertTriangle className="mt-0.5 size-4 shrink-0" /><span>{assets.duplicateManagementIps.length.toLocaleString("fa-IR")} IP مدیریتی برای بیش از یک تجهیز ثبت شده است.</span></div> : null}</CardContent></Card>
 
