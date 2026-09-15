@@ -1,69 +1,131 @@
-import { mkdir, readFile } from "node:fs/promises";
-import { join } from "node:path";
+import { access, mkdir, readFile, constants as fsConstants } from "node:fs/promises";
+import { isAbsolute, join, normalize, resolve } from "node:path";
 import type { PGlite } from "@electric-sql/pglite";
 
 /**
  * Persistent embedded Postgres (PGlite / WASM) for NetAtlas inventory + access.
- * Data lives under INVENTORY_DATA_DIR (or ./data) — keep that folder OUTSIDE
- * the IIS publish package so deploys never wipe user data.
+ * Data lives under INVENTORY_DATA_DIR — keep that folder OUTSIDE the IIS publish
+ * package so deploys never wipe user data.
+ *
+ * Windows tip: use forward slashes in web.config, e.g. D:/NetAtlas/data
  */
 
 const globalRef = globalThis as typeof globalThis & {
   __netatlasPg__?: Promise<PGlite>;
   __netatlasDbPath__?: string;
   __netatlasDbReady__?: Promise<void>;
+  __netatlasDataRoot__?: string;
 };
 
+/** Normalize env path for Windows (trim quotes, fix slashes, resolve absolute). */
 export function dataRoot(): string {
-  const env = process.env.INVENTORY_DATA_DIR?.trim();
-  if (env) return env;
-  return join(process.cwd(), "data");
+  if (globalRef.__netatlasDataRoot__) return globalRef.__netatlasDataRoot__;
+
+  let env = process.env.INVENTORY_DATA_DIR?.trim() ?? "";
+  // strip surrounding quotes from web.config mistakes
+  if (
+    (env.startsWith('"') && env.endsWith('"')) ||
+    (env.startsWith("'") && env.endsWith("'"))
+  ) {
+    env = env.slice(1, -1).trim();
+  }
+  // Windows: allow D:\ or D:/
+  env = env.replace(/\\/g, "/");
+
+  let root: string;
+  if (env) {
+    root = isAbsolute(env) ? normalize(env) : resolve(process.cwd(), env);
+  } else {
+    root = resolve(process.cwd(), "data");
+  }
+  globalRef.__netatlasDataRoot__ = root;
+  return root;
 }
 
 export function dbDataDir(): string {
   return join(dataRoot(), "pglite");
 }
 
+async function ensureDirWritable(dir: string): Promise<void> {
+  try {
+    await mkdir(dir, { recursive: true });
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    throw new Error(
+      `نمی‌توان پوشه داده را ساخت: ${dir}\n` +
+        `دسترسی نوشتن برای هویت IIS App Pool را روی این مسیر بدهید.\n` +
+        `(جزئیات: ${msg})`,
+    );
+  }
+  try {
+    await access(dir, fsConstants.W_OK | fsConstants.R_OK);
+  } catch {
+    throw new Error(
+      `پوشه داده وجود دارد ولی قابل‌نوشتن نیست: ${dir}\n` +
+        `به کاربر App Pool (مثلاً IIS AppPool\\نام‌سایت) حق Modify بدهید.`,
+    );
+  }
+}
+
 async function openDb(): Promise<PGlite> {
+  const root = dataRoot();
   const dir = dbDataDir();
-  await mkdir(dir, { recursive: true });
-  const { PGlite } = await import("@electric-sql/pglite");
-  const pg = new PGlite(dir);
-  await pg.waitReady;
-  await pg.exec(`
-    create table if not exists inventory_records (
-      id text primary key,
-      payload jsonb not null,
-      updated_at timestamptz not null default now()
+
+  await ensureDirWritable(root);
+  await ensureDirWritable(dir);
+
+  // PGlite on Windows is happier with forward-slash absolute paths
+  const pglitePath = dir.replace(/\\/g, "/");
+
+  try {
+    const { PGlite } = await import("@electric-sql/pglite");
+    const pg = new PGlite(pglitePath);
+    await pg.waitReady;
+    await pg.exec(`
+      create table if not exists inventory_records (
+        id text primary key,
+        payload jsonb not null,
+        updated_at timestamptz not null default now()
+      );
+      create table if not exists access_users (
+        id text primary key,
+        username text not null unique,
+        password_hash text not null,
+        role text not null,
+        active boolean not null default true,
+        display_name text not null,
+        created_at timestamptz not null
+      );
+      create table if not exists access_sessions (
+        token text primary key,
+        user_id text not null references access_users(id) on delete cascade,
+        expires_at timestamptz not null
+      );
+      create table if not exists access_role_permissions (
+        role text primary key,
+        pages jsonb not null,
+        can_edit boolean not null default false
+      );
+      create table if not exists netatlas_meta (
+        key text primary key,
+        value text not null
+      );
+      create index if not exists idx_inventory_updated on inventory_records(updated_at desc);
+      create index if not exists idx_sessions_user on access_sessions(user_id);
+    `);
+    globalRef.__netatlasDbPath__ = dir;
+    console.info(`[netatlas-db] opened PGlite at ${dir}`);
+    return pg;
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    throw new Error(
+      `باز کردن دیتابیس ناموفق بود.\n` +
+        `مسیر تنظیم‌شده: ${root}\n` +
+        `مسیر PGlite: ${dir}\n` +
+        `مطمئن شوید پوشه روی دیسک D وجود دارد و App Pool اجازه نوشتن دارد.\n` +
+        `(جزئیات: ${msg})`,
     );
-    create table if not exists access_users (
-      id text primary key,
-      username text not null unique,
-      password_hash text not null,
-      role text not null,
-      active boolean not null default true,
-      display_name text not null,
-      created_at timestamptz not null
-    );
-    create table if not exists access_sessions (
-      token text primary key,
-      user_id text not null references access_users(id) on delete cascade,
-      expires_at timestamptz not null
-    );
-    create table if not exists access_role_permissions (
-      role text primary key,
-      pages jsonb not null,
-      can_edit boolean not null default false
-    );
-    create table if not exists netatlas_meta (
-      key text primary key,
-      value text not null
-    );
-    create index if not exists idx_inventory_updated on inventory_records(updated_at desc);
-    create index if not exists idx_sessions_user on access_sessions(user_id);
-  `);
-  globalRef.__netatlasDbPath__ = dir;
-  return pg;
+  }
 }
 
 export function getNetatlasDb(): Promise<PGlite> {
@@ -77,6 +139,7 @@ export function getNetatlasDb(): Promise<PGlite> {
 export function storagePathInfo() {
   return {
     path: globalRef.__netatlasDbPath__ ?? dbDataDir(),
+    root: dataRoot(),
     engine: "pglite" as const,
   };
 }
