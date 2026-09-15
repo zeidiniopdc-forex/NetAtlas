@@ -1,14 +1,12 @@
-import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
-import { dirname, join } from "node:path";
 import { createSeedStore } from "./seed";
 import type { InventoryRecord, InventoryStore } from "./types";
+import {
+  ensureNetatlasDb,
+  storagePathInfo,
+} from "@/lib/netatlas-db.server";
 
-const FILE_NAME = "inventory.json";
-
-let memory: InventoryStore | null = null;
-let persistPath: string | null = null;
-let writable = true;
 let chain: Promise<unknown> = Promise.resolve();
+let writable = true;
 
 function withLock<T>(fn: () => Promise<T>): Promise<T> {
   const run = chain.then(fn, fn);
@@ -19,82 +17,86 @@ function withLock<T>(fn: () => Promise<T>): Promise<T> {
   return run;
 }
 
-function candidateDirs() {
-  const env = process.env.INVENTORY_DATA_DIR?.trim();
-  const list = [
-    env,
-    join(process.cwd(), "data"),
-    "/tmp/netatlas-data",
-  ].filter((d): d is string => Boolean(d));
-  return [...new Set(list)];
+async function loadAll(): Promise<InventoryStore> {
+  const pg = await ensureNetatlasDb();
+  const rows = await pg.query<{ payload: InventoryRecord }>(
+    "select payload from inventory_records order by updated_at desc",
+  );
+  const meta = await pg.query<{ value: string }>(
+    "select value from netatlas_meta where key = 'inventory_updated_at'",
+  );
+
+  let records = rows.rows.map((r) => {
+    const p = r.payload;
+    return typeof p === "string" ? (JSON.parse(p) as InventoryRecord) : p;
+  });
+
+  // First install only: empty DB and never seeded → sample data once
+  if (records.length === 0) {
+    const seeded = await pg.query<{ value: string }>(
+      "select value from netatlas_meta where key = 'inventory_seeded'",
+    );
+    if (!seeded.rows[0]) {
+      const seed = createSeedStore();
+      await persistAll(seed.records, seed.updatedAt);
+      await pg.query(
+        `insert into netatlas_meta (key, value) values ('inventory_seeded', '1')
+         on conflict (key) do nothing`,
+      );
+      records = seed.records;
+      return { version: 1, updatedAt: seed.updatedAt, records };
+    }
+  }
+
+  return {
+    version: 1,
+    updatedAt: meta.rows[0]?.value ?? new Date().toISOString(),
+    records,
+  };
 }
 
-async function atomicWrite(path: string, json: string) {
-  const tmp = `${path}.${process.pid}.tmp`;
-  await mkdir(dirname(path), { recursive: true });
-  await writeFile(tmp, json, "utf8");
-  await rename(tmp, path);
-}
-
-async function tryLoad(path: string): Promise<InventoryStore | null> {
+async function persistAll(records: InventoryRecord[], updatedAt: string) {
+  const pg = await ensureNetatlasDb();
   try {
-    const raw = await readFile(path, "utf8");
-    const parsed = JSON.parse(raw) as InventoryStore;
-    if (!parsed || parsed.version !== 1 || !Array.isArray(parsed.records)) return null;
-    return parsed;
-  } catch {
-    return null;
+    await pg.transaction(async (tx) => {
+      await tx.exec("delete from inventory_records");
+      for (const r of records) {
+        await tx.query(
+          `insert into inventory_records (id, payload, updated_at)
+           values ($1, $2::jsonb, $3::timestamptz)`,
+          [r.id, JSON.stringify(r), r.updatedAt || updatedAt],
+        );
+      }
+      await tx.query(
+        `insert into netatlas_meta (key, value) values ('inventory_updated_at', $1)
+         on conflict (key) do update set value = excluded.value`,
+        [updatedAt],
+      );
+      await tx.query(
+        `insert into netatlas_meta (key, value) values ('inventory_seeded', '1')
+         on conflict (key) do nothing`,
+      );
+    });
+    writable = true;
+  } catch (e) {
+    writable = false;
+    throw e;
   }
-}
-
-async function resolveStore(): Promise<InventoryStore> {
-  if (memory) return memory;
-  for (const dir of candidateDirs()) {
-    const path = join(dir, FILE_NAME);
-    const loaded = await tryLoad(path);
-    if (loaded) {
-      persistPath = path;
-      memory = loaded;
-      return loaded;
-    }
-  }
-  const seed = createSeedStore();
-  memory = seed;
-  await persist(seed);
-  return seed;
-}
-
-async function persist(store: InventoryStore) {
-  const payload = JSON.stringify(store, null, 2);
-  const dirs = persistPath ? [dirname(persistPath), ...candidateDirs()] : candidateDirs();
-  for (const dir of dirs) {
-    const path = join(dir, FILE_NAME);
-    try {
-      await atomicWrite(path, payload);
-      persistPath = path;
-      writable = true;
-      return;
-    } catch {
-      continue;
-    }
-  }
-  writable = false;
 }
 
 export async function readStore(): Promise<InventoryStore> {
-  return withLock(resolveStore);
+  return withLock(loadAll);
 }
 
 export async function writeStore(
   mutator: (store: InventoryStore) => InventoryStore,
 ): Promise<InventoryStore> {
   return withLock(async () => {
-    const current = await resolveStore();
+    const current = await loadAll();
     const next = mutator(current);
     next.updatedAt = new Date().toISOString();
     next.version = 1;
-    memory = next;
-    await persist(next);
+    await persistAll(next.records, next.updatedAt);
     return next;
   });
 }
@@ -108,5 +110,5 @@ export async function saveAll(records: InventoryRecord[]) {
 }
 
 export function storageInfo() {
-  return { path: persistPath, writable };
+  return { ...storagePathInfo(), writable };
 }
