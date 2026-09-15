@@ -44,7 +44,7 @@ export function buildAssetRegistry(records: InventoryRecord[]): AssetRegistry {
 
   const add = (
     kind: AssetKind,
-    name: string,
+    name: string | undefined,
     record: InventoryRecord,
     managementIp = "",
     location = "",
