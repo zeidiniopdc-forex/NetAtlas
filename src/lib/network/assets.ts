@@ -9,11 +9,17 @@ export type NetworkAsset = {
   site: string;
   building: string;
   location: string;
+  vendor: string;
+  model: string;
+  serialNumber: string;
   managementIp: string;
   interfaces: string[];
   records: number;
   activeRecords: number;
   status: RecordStatus;
+  notes: string;
+  createdAt: string;
+  updatedAt: string;
 };
 
 export type AssetRegistry = {
@@ -41,6 +47,7 @@ function assetKey(kind: AssetKind, name: string, site: string, building: string)
 export function buildAssetRegistry(records: InventoryRecord[]): AssetRegistry {
   const map = new Map<string, NetworkAsset>();
   const managementIpOwners = new Map<string, Set<string>>();
+  const now = new Date().toISOString();
 
   const add = (
     kind: AssetKind,
@@ -61,17 +68,24 @@ export function buildAssetRegistry(records: InventoryRecord[]): AssetRegistry {
       site,
       building,
       location,
+      vendor: kind === "switch" || kind === "router" ? "Cisco" : "",
+      model: "",
+      serialNumber: "",
       managementIp: "",
       interfaces: [],
       records: 0,
       activeRecords: 0,
       status: "inactive",
+      notes: "",
+      createdAt: record.createdAt || now,
+      updatedAt: record.updatedAt || now,
     };
 
     current.records += 1;
     if (record.status === "active") current.activeRecords += 1;
     current.status = current.activeRecords > 0 ? "active" : "inactive";
     current.location ||= location;
+    current.updatedAt = record.updatedAt || current.updatedAt;
 
     const mgmt = clean(managementIp);
     if (mgmt) {
