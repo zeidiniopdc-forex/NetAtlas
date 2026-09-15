@@ -27,6 +27,25 @@ function permsFor(role: Role, store: { rolePermissions: Record<Role, RolePermiss
   return store.rolePermissions.user ?? DEFAULT_ROLE_PERMISSIONS.user;
 }
 
+async function auditAccess(
+  action: "login" | "logout" | "user-create" | "user-update" | "user-delete" | "permission-update",
+  session: SessionInfo | null,
+  summary: string,
+  targetId: string | null = null,
+  metadata?: Record<string, string | number | boolean | null>,
+) {
+  const { appendAudit } = await import("@/lib/audit/store.server");
+  await appendAudit({
+    action,
+    actorId: session?.user.id ?? null,
+    actorUsername: session?.user.username ?? null,
+    targetType: action.startsWith("user-") ? "user" : "access",
+    targetId,
+    summary,
+    metadata,
+  });
+}
+
 export const getSession = createServerFn({ method: "GET" }).handler(async () => {
   const { sessionFromCookie } = await import("./session.server");
   return sessionFromCookie();
@@ -44,10 +63,10 @@ export const login = createServerFn({ method: "POST" })
     const store = await readAccessStore();
     const user = store.users.find((u) => u.username.toLowerCase() === username && u.active);
     if (!user || !verifyPassword(data.password, user.passwordHash)) {
+      await auditAccess("login", null, "تلاش ناموفق برای ورود", null, { username });
       throw new Error("نام کاربری یا رمز عبور اشتباه است");
     }
 
-    // Seamlessly migrate old SHA-256 hashes to per-user scrypt on successful login.
     if (isLegacyPasswordHash(user.passwordHash)) {
       await writeAccessStore((s) => ({
         ...s,
@@ -73,14 +92,19 @@ export const login = createServerFn({ method: "POST" })
     });
     const fresh = await readAccessStore();
     const freshUser = fresh.users.find((u) => u.id === user.id) ?? user;
-    return { user: toPublic(freshUser), permissions: permsFor(freshUser.role, fresh) } satisfies SessionInfo;
+    const result = { user: toPublic(freshUser), permissions: permsFor(freshUser.role, fresh) } satisfies SessionInfo;
+    await auditAccess("login", result, "ورود موفق به سامانه");
+    return result;
   });
 
 export const logout = createServerFn({ method: "POST" }).handler(async () => {
   const { getCookie, setCookie } = await import("@tanstack/react-start/server");
   const { writeAccessStore } = await import("./store.server");
+  const { sessionFromCookie } = await import("./session.server");
+  const session = await sessionFromCookie();
   const token = getCookie(COOKIE);
   if (token) await writeAccessStore((s) => ({ ...s, sessions: s.sessions.filter((x) => x.token !== token) }));
+  await auditAccess("logout", session, "خروج از سامانه");
   setCookie(COOKIE, "", { path: "/", httpOnly: true, maxAge: 0 });
   return { ok: true };
 });
@@ -126,6 +150,8 @@ export const saveUser = createServerFn({ method: "POST" })
       return { ...s, users };
     });
     const store = await readAccessStore();
+    const targetId = data.id ?? store.users.find((u) => u.username === username)?.id ?? null;
+    await auditAccess(data.id ? "user-update" : "user-create", session, data.id ? "ویرایش کاربر" : "ایجاد کاربر", targetId, { username, role: data.role, active: data.active });
     return { users: store.users.map(toPublic), rolePermissions: store.rolePermissions };
   });
 
@@ -136,6 +162,7 @@ export const deleteUser = createServerFn({ method: "POST" })
     const session = await sessionFromCookie();
     if (!session || session.user.role !== "admin") throw new Error("دسترسی غیرمجاز");
     const { writeAccessStore, readAccessStore } = await import("./store.server");
+    let deletedUsername = "";
     await writeAccessStore((s) => {
       const target = s.users.find((u) => u.id === data.id);
       if (!target) throw new Error("کاربر پیدا نشد");
@@ -144,8 +171,10 @@ export const deleteUser = createServerFn({ method: "POST" })
         const admins = s.users.filter((u) => u.role === "admin" && u.active && u.id !== target.id);
         if (admins.length === 0) throw new Error("حداقل یک ادمین فعال لازم است");
       }
+      deletedUsername = target.username;
       return { ...s, users: s.users.filter((u) => u.id !== data.id), sessions: s.sessions.filter((x) => x.userId !== data.id) };
     });
+    await auditAccess("user-delete", session, "حذف کاربر", data.id, { username: deletedUsername });
     const store = await readAccessStore();
     return { users: store.users.map(toPublic), rolePermissions: store.rolePermissions };
   });
@@ -159,6 +188,7 @@ export const updateUserRolePermissions = createServerFn({ method: "POST" })
     const { writeAccessStore, readAccessStore } = await import("./store.server");
     const pages = data.pages.filter((p) => ALL_PAGES.includes(p) && p !== "users");
     await writeAccessStore((s) => ({ ...s, rolePermissions: { ...s.rolePermissions, admin: { pages: [...ALL_PAGES], canEdit: true }, user: { pages, canEdit: Boolean(data.canEdit) } } }));
+    await auditAccess("permission-update", session, "تغییر دسترسی پیش‌فرض کاربران عادی", null, { pages: pages.join(","), canEdit: Boolean(data.canEdit) });
     const store = await readAccessStore();
     return { users: store.users.map(toPublic), rolePermissions: store.rolePermissions };
   });
@@ -167,7 +197,7 @@ export const importInventoryJson = createServerFn({ method: "POST" })
   .validator((data: { jsonText: string; mode: "merge" | "replace" }) => data)
   .handler(async ({ data }) => {
     const { requireEditAccess } = await import("./session.server");
-    await requireEditAccess();
+    const session = await requireEditAccess();
     let parsed: unknown;
     try { parsed = JSON.parse(data.jsonText); } catch { throw new Error("فایل JSON نامعتبر است"); }
     const records = extractRecords(parsed);
@@ -178,6 +208,8 @@ export const importInventoryJson = createServerFn({ method: "POST" })
     const { writeStore } = await import("@/lib/inventory/store.server");
     const { mergeRecords } = await import("@/lib/inventory/excel");
     const store = await writeStore((s) => ({ ...s, records: data.mode === "replace" ? validation.valid : mergeRecords(s.records, validation.valid) }));
+    const { appendAudit } = await import("@/lib/audit/store.server");
+    await appendAudit({ action: "import", actorId: session.user.id, actorUsername: session.user.username, targetType: "inventory", targetId: null, summary: `ورود ${validation.valid.length} رکورد از پشتیبان JSON (${data.mode})`, metadata: { mode: data.mode, imported: validation.valid.length, total: store.records.length } });
     return { count: store.records.length, updatedAt: store.updatedAt };
   });
 
