@@ -12,6 +12,7 @@ import { FIELD_LABELS, STATUS_LABEL, TABLE_COLUMNS } from "@/lib/inventory/field
 import { recordMatches } from "@/lib/inventory/relations";
 import { useInventory, useInventoryMutations } from "@/lib/inventory/query";
 import type { InventoryRecord } from "@/lib/inventory/types";
+import { buildAssetRegistry, assetKindLabel } from "@/lib/network/assets";
 import { buildVlanSummary, findIpIssues, summarizeIpam } from "@/lib/network/ipam";
 import { cn } from "@/lib/utils";
 import { useAccess } from "@/lib/access/session";
@@ -30,6 +31,7 @@ function InventoryPage() {
   const ipam = useMemo(() => summarizeIpam(records), [records]);
   const ipIssues = useMemo(() => findIpIssues(records), [records]);
   const vlans = useMemo(() => buildVlanSummary(records), [records]);
+  const assets = useMemo(() => buildAssetRegistry(records), [records]);
 
   const rows = useMemo(() => {
     if (!q.trim()) return records;
@@ -93,6 +95,37 @@ function InventoryPage() {
           </CardContent>
         </Card>
       </div>
+
+      <Card className="rounded-lg">
+        <CardHeader className="pb-2">
+          <CardTitle className="text-sm">دارایی‌های شبکه</CardTitle>
+          <p className="text-xs text-muted">نمایش نرمال‌شده تجهیزات و محل‌های زیرساختی استخراج‌شده از موجودی فعلی</p>
+        </CardHeader>
+        <CardContent>
+          <div className="grid gap-2 sm:grid-cols-5">
+            {(["switch", "router", "firewall", "rack", "serverRoom"] as const).map((kind) => (
+              <div key={kind} className="rounded-md border border-border p-3">
+                <div className="text-xs text-muted">{assetKindLabel(kind)}</div>
+                <div className="mt-1 text-xl font-semibold tabular-nums">{assets.byKind[kind].toLocaleString("fa-IR")}</div>
+              </div>
+            ))}
+          </div>
+          {assets.duplicateManagementIps.length > 0 ? (
+            <div className="mt-3 flex items-start gap-2 rounded-md border border-border p-3 text-sm text-warn">
+              <AlertTriangle className="mt-0.5 size-4 shrink-0" />
+              <span>{assets.duplicateManagementIps.length.toLocaleString("fa-IR")} IP مدیریتی برای بیش از یک تجهیز ثبت شده است.</span>
+            </div>
+          ) : null}
+          <div className="mt-3 flex flex-wrap gap-1.5">
+            {assets.assets.slice(0, 12).map((asset) => (
+              <Badge key={asset.id} variant={asset.status === "active" ? "ok" : "default"}>
+                {assetKindLabel(asset.kind)}: {asset.name}
+                {asset.managementIp ? ` · ${asset.managementIp}` : ""}
+              </Badge>
+            ))}
+          </div>
+        </CardContent>
+      </Card>
 
       <div className="overflow-x-auto rounded-xl border border-border">
         <table className="w-full min-w-[980px] text-sm">
