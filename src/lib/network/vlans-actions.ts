@@ -1,6 +1,6 @@
 import { createServerFn } from "@tanstack/react-start";
 import { isValidIpv4 } from "./ipam";
-import { cidrRange, cidrsOverlap, isIpInCidr, normalizeCidr, type Vlan } from "./vlans";
+import { cidrRange, cidrsOverlap, isIpInCidr, ipv4ToInt, normalizeCidr, type Vlan } from "./vlans";
 import { listVlans, newVlanId, readVlanStore, writeVlanStore } from "./vlans-store.server";
 
 function validateVlan(data: Vlan, existing: Vlan[]) {
@@ -13,7 +13,9 @@ function validateVlan(data: Vlan, existing: Vlan[]) {
   if (data.dhcpEnd && !isValidIpv4(data.dhcpEnd)) throw new Error("انتهای DHCP نامعتبر است");
   if (data.gateway && !isIpInCidr(data.gateway, cidr)) throw new Error("Gateway خارج از Subnet است");
   if ((data.dhcpStart && !isIpInCidr(data.dhcpStart, cidr)) || (data.dhcpEnd && !isIpInCidr(data.dhcpEnd, cidr))) throw new Error("محدوده DHCP خارج از Subnet است");
-  if (data.dhcpStart && data.dhcpEnd && data.dhcpStart.localeCompare(data.dhcpEnd, undefined, { numeric: true }) > 0) throw new Error("محدوده DHCP نامعتبر است");
+  const dhcpStart = data.dhcpStart ? ipv4ToInt(data.dhcpStart) : null;
+  const dhcpEnd = data.dhcpEnd ? ipv4ToInt(data.dhcpEnd) : null;
+  if (dhcpStart !== null && dhcpEnd !== null && dhcpStart > dhcpEnd) throw new Error("محدوده DHCP نامعتبر است");
   const duplicateId = existing.find((v) => v.id !== data.id && v.vlanId === data.vlanId && v.site.trim() === data.site.trim());
   if (duplicateId) throw new Error(`VLAN ${data.vlanId} در این Site قبلاً ثبت شده است`);
   const overlap = existing.find((v) => v.id !== data.id && cidrsOverlap(v.cidr, cidr));
