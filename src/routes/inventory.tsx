@@ -3,6 +3,7 @@ import { AlertTriangle, Pencil, Plus, Search } from "lucide-react";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
 import { NetworkAssetsPanel } from "@/components/network/network-assets-panel";
+import { NetworkDataQualityPanel } from "@/components/network/network-data-quality-panel";
 import { NetworkPortPanel } from "@/components/network/network-port-panel";
 import { NetworkTopologyPanel } from "@/components/network/network-topology-panel";
 import { NetworkVlanPanel } from "@/components/network/network-vlan-panel";
@@ -57,6 +58,7 @@ function InventoryPage() {
         <Card className="rounded-lg"><CardHeader className="pb-2"><CardTitle className="text-sm">کیفیت داده</CardTitle></CardHeader><CardContent>{ipIssues.length === 0 ? <p className="text-sm text-ok">مشکل IP شناسایی نشد.</p> : <div className="flex items-start gap-2 text-sm text-warn"><AlertTriangle className="mt-0.5 size-4 shrink-0" /><span>{ipIssues.length.toLocaleString("fa-IR")} مورد نیازمند بررسی IP</span></div>}<p className="mt-2 text-xs text-muted">کنترل اولیه برای IP تکراری و نامعتبر</p></CardContent></Card>
       </div>
 
+      <NetworkDataQualityPanel records={records} />
       <NetworkVlanPanel records={records} />
       <NetworkTopologyPanel />
 
