@@ -1,5 +1,5 @@
 import { Pencil, Plus, Save, Trash2, X } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 import { toast } from "sonner";
 import type { AssetKind, NetworkAsset } from "@/lib/network/assets";
 import { assetKindLabel } from "@/lib/network/assets";
@@ -133,6 +133,6 @@ export function NetworkAssetsPanel() {
   );
 }
 
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
+function Field({ label, children }: { label: string; children: ReactNode }) {
   return <label className="grid gap-1.5 text-xs text-muted"><span>{label}</span>{children}</label>;
 }
