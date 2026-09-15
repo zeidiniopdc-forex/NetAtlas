@@ -1,16 +1,18 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { Pencil, Plus, Search } from "lucide-react";
+import { AlertTriangle, Pencil, Plus, Search } from "lucide-react";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
 import { RecordForm } from "@/components/inventory/record-form";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { FIELD_LABELS, STATUS_LABEL, TABLE_COLUMNS } from "@/lib/inventory/fields";
 import { recordMatches } from "@/lib/inventory/relations";
 import { useInventory, useInventoryMutations } from "@/lib/inventory/query";
 import type { InventoryRecord } from "@/lib/inventory/types";
+import { buildVlanSummary, findIpIssues, summarizeIpam } from "@/lib/network/ipam";
 import { cn } from "@/lib/utils";
 import { useAccess } from "@/lib/access/session";
 
@@ -24,11 +26,15 @@ function InventoryPage() {
   const [createOpen, setCreateOpen] = useState(false);
   const [editing, setEditing] = useState<InventoryRecord | null>(null);
 
+  const records = data?.records ?? [];
+  const ipam = useMemo(() => summarizeIpam(records), [records]);
+  const ipIssues = useMemo(() => findIpIssues(records), [records]);
+  const vlans = useMemo(() => buildVlanSummary(records), [records]);
+
   const rows = useMemo(() => {
-    const list = data?.records ?? [];
-    if (!q.trim()) return list;
-    return list.filter((r) => recordMatches(r, q));
-  }, [data, q]);
+    if (!q.trim()) return records;
+    return records.filter((r) => recordMatches(r, q));
+  }, [records, q]);
 
   const colSpan = TABLE_COLUMNS.length + 2;
 
@@ -44,159 +50,91 @@ function InventoryPage() {
         <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row">
           <div className="relative sm:w-72">
             <Search className="pointer-events-none absolute start-3 top-1/2 size-4 -translate-y-1/2 text-faint" />
-            <Input
-              className="ps-9"
-              value={q}
-              onChange={(e) => setQ(e.target.value)}
-              placeholder="فیلتر جدول"
-            />
+            <Input className="ps-9" value={q} onChange={(e) => setQ(e.target.value)} placeholder="فیلتر جدول" />
           </div>
           {canEdit ? (
-          <Button onClick={() => setCreateOpen(true)}>
-            <Plus className="size-4" />
-            رکورد جدید
-          </Button>
+            <Button onClick={() => setCreateOpen(true)}><Plus className="size-4" />رکورد جدید</Button>
           ) : null}
         </div>
       </div>
 
+      <div className="grid gap-3 md:grid-cols-3">
+        <Card className="rounded-lg">
+          <CardHeader className="pb-2"><CardTitle className="text-sm">IPAM</CardTitle></CardHeader>
+          <CardContent className="grid grid-cols-2 gap-3 text-sm">
+            <Metric label="IP ثبت‌شده" value={ipam.totalAssigned} />
+            <Metric label="IP یکتا" value={ipam.uniqueAssigned} />
+            <Metric label="تکراری" value={ipam.duplicates} danger={ipam.duplicates > 0} />
+            <Metric label="نامعتبر" value={ipam.invalid} danger={ipam.invalid > 0} />
+          </CardContent>
+        </Card>
+        <Card className="rounded-lg">
+          <CardHeader className="pb-2"><CardTitle className="text-sm">VLAN</CardTitle></CardHeader>
+          <CardContent>
+            <div className="text-2xl font-semibold tabular-nums">{vlans.length.toLocaleString("fa-IR")}</div>
+            <p className="mt-1 text-xs text-muted">VLAN یکتا در موجودی فعلی</p>
+            <div className="mt-3 flex flex-wrap gap-1.5">
+              {vlans.slice(0, 8).map((v) => <Badge key={v.key} variant="ok">{v.number || v.name} · {v.records}</Badge>)}
+            </div>
+          </CardContent>
+        </Card>
+        <Card className="rounded-lg">
+          <CardHeader className="pb-2"><CardTitle className="text-sm">کیفیت داده</CardTitle></CardHeader>
+          <CardContent>
+            {ipIssues.length === 0 ? (
+              <p className="text-sm text-ok">مشکل IP شناسایی نشد.</p>
+            ) : (
+              <div className="flex items-start gap-2 text-sm text-warn">
+                <AlertTriangle className="mt-0.5 size-4 shrink-0" />
+                <span>{ipIssues.length.toLocaleString("fa-IR")} مورد نیازمند بررسی IP</span>
+              </div>
+            )}
+            <p className="mt-2 text-xs text-muted">کنترل اولیه برای IP تکراری و نامعتبر</p>
+          </CardContent>
+        </Card>
+      </div>
+
       <div className="overflow-x-auto rounded-xl border border-border">
         <table className="w-full min-w-[980px] text-sm">
-          <thead className="bg-surface-2 text-xs text-muted">
-            <tr>
-              {TABLE_COLUMNS.map((c) => (
-                <th key={c} className="px-3 py-3 text-start font-medium">
-                  {FIELD_LABELS[c]}
-                </th>
-              ))}
-              <th className="px-3 py-3 text-start font-medium">فایروال</th>
-              <th className="px-3 py-3 text-start font-medium">عملیات</th>
-            </tr>
-          </thead>
+          <thead className="bg-surface-2 text-xs text-muted"><tr>
+            {TABLE_COLUMNS.map((c) => <th key={c} className="px-3 py-3 text-start font-medium">{FIELD_LABELS[c]}</th>)}
+            <th className="px-3 py-3 text-start font-medium">فایروال</th>
+            <th className="px-3 py-3 text-start font-medium">عملیات</th>
+          </tr></thead>
           <tbody>
-            {isLoading ? (
-              <tr>
-                <td colSpan={colSpan} className="px-3 py-10 text-center text-muted">
-                  در حال بارگذاری…
-                </td>
-              </tr>
-            ) : rows.length === 0 ? (
-              <tr>
-                <td colSpan={colSpan} className="px-3 py-10 text-center text-muted">
-                  رکوردی نیست. از ورود اکسل استفاده کنید یا رکورد جدید بسازید.
-                </td>
-              </tr>
-            ) : (
-              rows.map((r) => (
-                <Row key={r.id} record={r} canEdit={canEdit} onEdit={() => setEditing(r)} />
-              ))
-            )}
+            {isLoading ? <tr><td colSpan={colSpan} className="px-3 py-10 text-center text-muted">در حال بارگذاری…</td></tr> :
+              rows.length === 0 ? <tr><td colSpan={colSpan} className="px-3 py-10 text-center text-muted">رکوردی نیست. از ورود اکسل استفاده کنید یا رکورد جدید بسازید.</td></tr> :
+              rows.map((r) => <Row key={r.id} record={r} canEdit={canEdit} onEdit={() => setEditing(r)} />)}
           </tbody>
         </table>
       </div>
 
-      <Dialog open={createOpen} onOpenChange={setCreateOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>رکورد جدید</DialogTitle>
-          </DialogHeader>
-          <RecordForm
-            busy={upsert.isPending}
-            onCancel={() => setCreateOpen(false)}
-            onSubmit={(record) => {
-              upsert.mutate(record, {
-                onSuccess: () => {
-                  toast.success("روی فایل JSON سرور ذخیره شد");
-                  setCreateOpen(false);
-                },
-                onError: () => toast.error("ذخیره انجام نشد"),
-              });
-            }}
-          />
-        </DialogContent>
-      </Dialog>
+      <Dialog open={createOpen} onOpenChange={setCreateOpen}><DialogContent><DialogHeader><DialogTitle>رکورد جدید</DialogTitle></DialogHeader>
+        <RecordForm busy={upsert.isPending} onCancel={() => setCreateOpen(false)} onSubmit={(record) => {
+          upsert.mutate(record, { onSuccess: () => { toast.success("روی فایل JSON سرور ذخیره شد"); setCreateOpen(false); }, onError: () => toast.error("ذخیره انجام نشد") });
+        }} />
+      </DialogContent></Dialog>
 
-      <Dialog open={!!editing} onOpenChange={(o) => !o && setEditing(null)}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>ویرایش رکورد</DialogTitle>
-          </DialogHeader>
-          {editing ? (
-            <RecordForm
-              initial={editing}
-              busy={upsert.isPending}
-              onCancel={() => setEditing(null)}
-              onSubmit={(record) => {
-                upsert.mutate(record, {
-                  onSuccess: () => {
-                    toast.success("تغییرات روی JSON سرور ذخیره شد");
-                    setEditing(null);
-                  },
-                  onError: () => toast.error("ذخیره انجام نشد"),
-                });
-              }}
-            />
-          ) : null}
-        </DialogContent>
-      </Dialog>
+      <Dialog open={!!editing} onOpenChange={(o) => !o && setEditing(null)}><DialogContent><DialogHeader><DialogTitle>ویرایش رکورد</DialogTitle></DialogHeader>
+        {editing ? <RecordForm initial={editing} busy={upsert.isPending} onCancel={() => setEditing(null)} onSubmit={(record) => {
+          upsert.mutate(record, { onSuccess: () => { toast.success("تغییرات روی JSON سرور ذخیره شد"); setEditing(null); }, onError: () => toast.error("ذخیره انجام نشد") });
+        }} /> : null}
+      </DialogContent></Dialog>
     </div>
   );
 }
 
-function Row({
-  record,
-  onEdit,
-  canEdit,
-}: {
-  record: InventoryRecord;
-  onEdit: () => void;
-  canEdit: boolean;
-}) {
-  return (
-    <tr className="border-t border-border hover:bg-surface-2/60">
-      {TABLE_COLUMNS.map((c) => (
-        <td key={c} className="px-3 py-2.5">
-          {c === "status" ? (
-            <Badge variant={record.status === "active" ? "ok" : "danger"}>
-              {STATUS_LABEL[record.status]}
-            </Badge>
-          ) : (
-            <Link
-              to="/inventory/$id"
-              params={{ id: record.id }}
-              className={cn(
-                "hover:text-accent",
-                c === "ip" || c === "switchInterface" ? "font-mono" : undefined,
-              )}
-              dir={c === "ip" || c === "switchInterface" ? "ltr" : undefined}
-            >
-              {String(record[c] || "—")}
-            </Link>
-          )}
-        </td>
-      ))}
-      <td className="px-3 py-2.5 text-xs text-muted">
-        {record.firewallAccess.length
-          ? record.firewallAccess.map((f) => f.service).join("، ")
-          : "—"}
-      </td>
-      <td className="px-3 py-2.5">
-        {canEdit ? (
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon"
-          className="size-8"
-          onClick={onEdit}
-          aria-label="ویرایش"
-          title="ویرایش"
-        >
-          <Pencil className="size-4" />
-        </Button>
-        ) : (
-          <span className="text-xs text-faint">—</span>
-        )}
-      </td>
-    </tr>
-  );
+function Metric({ label, value, danger }: { label: string; value: number; danger?: boolean }) {
+  return <div><div className={cn("text-xl font-semibold tabular-nums", danger ? "text-danger" : undefined)}>{value.toLocaleString("fa-IR")}</div><p className="text-xs text-muted">{label}</p></div>;
+}
+
+function Row({ record, onEdit, canEdit }: { record: InventoryRecord; onEdit: () => void; canEdit: boolean }) {
+  return <tr className="border-t border-border hover:bg-surface-2/60">
+    {TABLE_COLUMNS.map((c) => <td key={c} className="px-3 py-2.5">
+      {c === "status" ? <Badge variant={record.status === "active" ? "ok" : "danger"}>{STATUS_LABEL[record.status]}</Badge> :
+        <Link to="/inventory/$id" params={{ id: record.id }} className={cn("hover:text-accent", c === "ip" || c === "switchInterface" ? "font-mono" : undefined)} dir={c === "ip" || c === "switchInterface" ? "ltr" : undefined}>{String(record[c] || "—")}</Link>}
+    </td>)}
+    <td className="px-3 py-2.5 text-xs text-muted">{record.firewallAccess.length ? record.firewallAccess.map((f) => f.service).join("، ") : "—"}</td>
+    <td className="px-3 py-2.5">{canEdit ? <Button type="button" variant="ghost" size="icon" className="size-8" onClick={onEdit} aria-label="ویرایش" title="ویرایش"><Pencil className="size-4" /></Button> : <span className="text-xs text-faint">—</span>}</td>
+  </tr>;
 }
