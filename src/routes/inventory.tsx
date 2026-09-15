@@ -2,6 +2,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { AlertTriangle, Pencil, Plus, Search } from "lucide-react";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
+import { NetworkAssetsPanel } from "@/components/network/network-assets-panel";
 import { RecordForm } from "@/components/inventory/record-form";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -98,8 +99,8 @@ function InventoryPage() {
 
       <Card className="rounded-lg">
         <CardHeader className="pb-2">
-          <CardTitle className="text-sm">دارایی‌های شبکه</CardTitle>
-          <p className="text-xs text-muted">نمایش نرمال‌شده تجهیزات و محل‌های زیرساختی استخراج‌شده از موجودی فعلی</p>
+          <CardTitle className="text-sm">دارایی‌های استخراج‌شده از موجودی</CardTitle>
+          <p className="text-xs text-muted">نمایش نرمال‌شده تجهیزات و محل‌های زیرساختی از رکوردهای فعلی</p>
         </CardHeader>
         <CardContent>
           <div className="grid gap-2 sm:grid-cols-5">
@@ -116,16 +117,10 @@ function InventoryPage() {
               <span>{assets.duplicateManagementIps.length.toLocaleString("fa-IR")} IP مدیریتی برای بیش از یک تجهیز ثبت شده است.</span>
             </div>
           ) : null}
-          <div className="mt-3 flex flex-wrap gap-1.5">
-            {assets.assets.slice(0, 12).map((asset) => (
-              <Badge key={asset.id} variant={asset.status === "active" ? "ok" : "default"}>
-                {assetKindLabel(asset.kind)}: {asset.name}
-                {asset.managementIp ? ` · ${asset.managementIp}` : ""}
-              </Badge>
-            ))}
-          </div>
         </CardContent>
       </Card>
+
+      <NetworkAssetsPanel />
 
       <div className="overflow-x-auto rounded-xl border border-border">
         <table className="w-full min-w-[980px] text-sm">
