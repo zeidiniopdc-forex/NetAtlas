@@ -4,14 +4,19 @@ import type { EntityKind, GraphEdge, GraphNode, InventoryRecord } from "@/lib/in
 import { cn } from "@/lib/utils";
 
 const KIND_TONE: Record<EntityKind, string> = {
+  site: "bg-accent/15 text-accent",
+  building: "bg-accent/10 text-accent",
   floor: "bg-surface-2 text-muted",
   room: "bg-surface-2 text-muted",
+  serverRoom: "bg-danger/10 text-danger",
+  rack: "bg-danger/15 text-danger",
   user: "bg-accent/15 text-accent",
   node: "bg-surface-2 text-fg",
   patch: "bg-surface-2 text-fg",
   port: "bg-surface-2 text-fg",
   switch: "bg-ok/15 text-ok",
   iface: "bg-ok/10 text-ok",
+  router: "bg-ok/15 text-ok",
   cable: "bg-surface-2 text-muted",
   computer: "bg-warn/15 text-warn",
   windows: "bg-warn/10 text-warn",
@@ -23,8 +28,12 @@ const KIND_TONE: Record<EntityKind, string> = {
 };
 
 const ORDER: EntityKind[] = [
+  "site",
+  "building",
   "floor",
   "room",
+  "serverRoom",
+  "rack",
   "user",
   "computer",
   "windows",
@@ -37,6 +46,7 @@ const ORDER: EntityKind[] = [
   "cable",
   "switch",
   "iface",
+  "router",
   "firewall",
 ];
 
@@ -57,10 +67,7 @@ export function RelationGraph({
 
   const width = 920;
   const colW = width / Math.max(grouped.length, 1);
-  const height = Math.max(
-    220,
-    ...grouped.map((g) => 48 + g.items.length * 36),
-  );
+  const height = Math.max(220, ...grouped.map((g) => 48 + g.items.length * 36));
 
   const pos = new Map<string, { x: number; y: number }>();
   grouped.forEach((g, gi) => {
@@ -116,17 +123,12 @@ export function RelationGraph({
                   key={n.id}
                   type="button"
                   onClick={() => onPick?.(n.label)}
-                  className={cn(
-                    "rounded-full px-2.5 py-1 text-xs",
-                    KIND_TONE[n.kind],
-                  )}
+                  className={cn("rounded-full px-2.5 py-1 text-xs", KIND_TONE[n.kind])}
                 >
                   <span dir={n.kind === "ip" || n.kind === "iface" ? "ltr" : undefined}>
                     {n.label}
                   </span>
-                  {n.count > 1 ? (
-                    <span className="ms-1 tabular-nums opacity-70">{n.count}</span>
-                  ) : null}
+                  {n.count > 1 ? <span className="ms-1 tabular-nums opacity-70">{n.count}</span> : null}
                 </button>
               ))}
             </div>
@@ -162,8 +164,7 @@ export function RecordList({ records }: { records: InventoryRecord[] }) {
               </span>
             </p>
             <p className="mt-1 text-sm text-muted">
-              طبقه {r.floor || "—"} · اتاق {r.room || "—"} · {r.computerName || "بدون کامپیوتر"} ·{" "}
-              {r.switchName} {r.switchInterface}
+              {r.site || "—"} · {r.building || "—"} · طبقه {r.floor || "—"} · اتاق {r.room || "—"} · {r.computerName || "بدون کامپیوتر"} · {r.switchName} {r.switchInterface}
             </p>
             {r.firewallAccess.length ? (
               <p className="mt-2 text-xs text-muted">
