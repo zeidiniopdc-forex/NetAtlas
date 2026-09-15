@@ -3,7 +3,12 @@ name: Build for IIS (Offline Package)
 on:
   workflow_dispatch:
   push:
+    branches: [ main, netatlas-v2-production ]
+  pull_request:
     branches: [ main ]
+
+permissions:
+  contents: read
 
 jobs:
   build:
@@ -19,7 +24,7 @@ jobs:
           node-version: '22'
           cache: 'npm'
 
-      - name: Download Vazirmatn fonts (offline-safe)
+      - name: Download Vazirmatn fonts
         run: |
           mkdir -p public/fonts
           curl -sL -o /tmp/vazirmatn.zip "https://github.com/rastikerdar/vazirmatn/releases/download/v33.003/vazirmatn-v33.003.zip"
@@ -28,10 +33,12 @@ jobs:
           cp /tmp/vazir/fonts/webfonts/Vazirmatn-Medium.woff2 public/fonts/
           cp /tmp/vazir/fonts/webfonts/Vazirmatn-SemiBold.woff2 public/fonts/
           cp /tmp/vazir/fonts/webfonts/Vazirmatn-Bold.woff2 public/fonts/
-          ls -la public/fonts/
 
       - name: Install dependencies
         run: npm ci
+
+      - name: Typecheck
+        run: npm run typecheck
 
       - name: Build for Node.js (IIS)
         run: |
@@ -40,55 +47,34 @@ jobs:
         env:
           NODE_ENV: production
 
-      - name: Show build output (debug)
-        run: |
-          echo "=== Listing root ==="
-          ls -la
-          echo "=== Looking for .output ==="
-          ls -la .output 2>/dev/null || echo "No .output folder"
-          ls -la .output/server 2>/dev/null || echo "No .output/server"
-          ls -la .output/public/fonts 2>/dev/null || ls -la public/fonts 2>/dev/null || true
-
       - name: Prepare IIS package
         run: |
           mkdir -p iis-package
-
           if [ -d ".output" ]; then
-            echo "Using .output folder"
             cp -r .output/* iis-package/
           elif [ -d ".vercel/output" ]; then
-            echo "Using .vercel/output folder"
             cp -r .vercel/output/* iis-package/
           else
             echo "ERROR: No build output found!"
             exit 1
           fi
 
-          # Ensure fonts are in package (under public or root)
           mkdir -p iis-package/public/fonts
-          if [ -d "public/fonts" ]; then
-            cp -r public/fonts/* iis-package/public/fonts/ 2>/dev/null || true
-            mkdir -p iis-package/fonts
-            cp -r public/fonts/* iis-package/fonts/ 2>/dev/null || true
-          fi
-
+          cp -r public/fonts/* iis-package/public/fonts/ 2>/dev/null || true
+          mkdir -p iis-package/fonts
+          cp -r public/fonts/* iis-package/fonts/ 2>/dev/null || true
           cp iis/web.config iis-package/web.config
           mkdir -p iis-package/logs
 
-          if [ -d "data" ]; then
-            cp -r data iis-package/
-          fi
+          # Runtime data is created on the server; do not ship mutable production data.
+          echo "NetAtlas runtime data is stored under the configured data path on IIS." > iis-package/DATA-LOCATION.txt
 
           sed -i 's|arguments="\\.\\\\.output\\\\server\\\\index\\.mjs"|arguments=".\\server\\index.mjs"|g' iis-package/web.config || true
           sed -i 's|arguments="\\./\\.output/server/index\\.mjs"|arguments="./server/index.mjs"|g' iis-package/web.config || true
-
-          # Ensure NODE_SKIP_PLATFORM_CHECK for older Windows Server
           if ! grep -q NODE_SKIP_PLATFORM_CHECK iis-package/web.config; then
             sed -i 's|</environmentVariables>|<environmentVariable name="NODE_SKIP_PLATFORM_CHECK" value="1" />\n      </environmentVariables>|' iis-package/web.config || true
           fi
-
-          echo "=== Final package contents ==="
-          find iis-package -type f | head -80
+          find iis-package -type f | head -100
 
       - name: Upload IIS package
         uses: actions/upload-artifact@v4
