@@ -18,18 +18,32 @@ export type FirewallAccess = {
   notes: string;
 };
 
+/**
+ * Logical network asset fields are kept on the inventory record for backwards
+ * compatibility with the current JSON store. They are deliberately optional
+ * so existing records/imports remain valid while the normalized asset model is
+ * introduced in the next migration phase.
+ */
 export type InventoryRecord = {
   id: string;
+  site?: string;
+  building?: string;
   floor: string;
   room: string;
+  serverRoom?: string;
+  rack?: string;
   userName: string;
   nodeRow: string;
   nodeNumber: string;
+  wallNodeLabel?: string;
   patchPanel: string;
   patchPort: string;
   patchRackPosition: string;
   switchName: string;
   switchInterface: string;
+  switchManagementIp?: string;
+  routerName?: string;
+  routerInterface?: string;
   cableNumber: string;
   computerName: string;
   windowsUsername: string;
@@ -68,14 +82,19 @@ export type InventoryStats = {
 };
 
 export type EntityKind =
+  | "site"
+  | "building"
   | "floor"
   | "room"
+  | "serverRoom"
+  | "rack"
   | "user"
   | "node"
   | "patch"
   | "port"
   | "switch"
   | "iface"
+  | "router"
   | "cable"
   | "computer"
   | "windows"
