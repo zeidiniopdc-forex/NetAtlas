@@ -7,16 +7,19 @@ import {
   PathStrip,
   ServiceMix,
   SwitchRack,
+  TopologyHealthCard,
 } from "@/components/dashboard/widgets";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useInventory } from "@/lib/inventory/query";
+import { useTopology } from "@/lib/network/topology-query";
 import { faDate } from "@/lib/utils";
 
 export const Route = createFileRoute("/")({ component: Dashboard });
 
 function Dashboard() {
   const { data, isLoading, error } = useInventory();
+  const { data: topologyLinks = [] } = useTopology();
   const [q, setQ] = useState("");
   const navigate = useNavigate();
 
@@ -29,11 +32,15 @@ function Dashboard() {
     <div className="flex flex-col gap-6">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
         <div>
-          <p className="text-xs text-muted">نمای کلی زیرساخت</p>
-          <h1 className="mt-1 text-2xl font-medium tracking-tight md:text-3xl">داشبورد شبکه</h1>
+          <p className="text-xs text-muted">نمای کلی زیرساخت · NetAtlas v3</p>
+          <h1 className="mt-1 text-2xl font-medium tracking-tight md:text-3xl">
+            داشبورد شبکه
+          </h1>
           <p className="mt-2 text-sm text-muted">
             آخرین ذخیره: {faDate(data.updatedAt)}
-            {data.storage.path ? " · فایل JSON روی سرور" : " · ذخیره در حافظه موقت سرور"}
+            {data.storage.path
+              ? " · فایل JSON روی سرور"
+              : " · ذخیره در حافظه موقت سرور"}
           </p>
         </div>
         <form
@@ -56,6 +63,9 @@ function Dashboard() {
       </div>
 
       <KpiGrid stats={data.stats} />
+
+      <TopologyHealthCard links={topologyLinks} />
+
       <InfraCharts stats={data.stats} />
 
       <div className="grid gap-4 lg:grid-cols-2">

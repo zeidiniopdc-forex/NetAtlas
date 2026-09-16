@@ -3,7 +3,7 @@ name: Build for IIS (Offline Package)
 on:
   workflow_dispatch:
   push:
-    branches: [ main, netatlas-v2-production ]
+    branches: [ main, netatlas-v2-production, netatlas-v3-production ]
   pull_request:
     branches: [ main ]
 
@@ -68,6 +68,8 @@ jobs:
 
           # Runtime data is created on the server; do not ship mutable production data.
           echo "NetAtlas runtime data is stored under the configured data path on IIS." > iis-package/DATA-LOCATION.txt
+          echo "Package branch: ${GITHUB_REF_NAME:-unknown}" > iis-package/PACKAGE-INFO.txt
+          echo "Built at: $(date -u +%Y-%m-%dT%H:%M:%SZ)" >> iis-package/PACKAGE-INFO.txt
 
           sed -i 's|arguments="\\.\\\\.output\\\\server\\\\index\\.mjs"|arguments=".\\server\\index.mjs"|g' iis-package/web.config || true
           sed -i 's|arguments="\\./\\.output/server/index\\.mjs"|arguments="./server/index.mjs"|g' iis-package/web.config || true
@@ -79,7 +81,7 @@ jobs:
       - name: Upload IIS package
         uses: actions/upload-artifact@v4
         with:
-          name: NetAtlas-IIS-Ready
+          name: NetAtlas-IIS-${{ github.ref_name }}
           path: iis-package/
           retention-days: 14
           if-no-files-found: error
