@@ -15,6 +15,7 @@ import { Route as ExchangeRouteImport } from './routes/exchange'
 import { Route as FirewallRouteImport } from './routes/firewall'
 import { Route as InventoryRouteImport } from './routes/inventory'
 import { Route as SearchRouteImport } from './routes/search'
+import { Route as TopologyRouteImport } from './routes/topology'
 import { Route as InventoryIdRouteImport } from './routes/inventory.$id'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as UsersRouteImport } from './routes/users'
@@ -49,6 +50,11 @@ const SearchRoute = SearchRouteImport.update({
   path: '/search',
   getParentRoute: () => rootRouteImport,
 } as any)
+const TopologyRoute = TopologyRouteImport.update({
+  id: '/topology',
+  path: '/topology',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const InventoryIdRoute = InventoryIdRouteImport.update({
   id: '/$id',
   path: '/$id',
@@ -72,6 +78,7 @@ export interface FileRoutesByFullPath {
   '/firewall': typeof FirewallRoute
   '/inventory': typeof InventoryRouteWithChildren
   '/search': typeof SearchRoute
+  '/topology': typeof TopologyRoute
   '/inventory/$id': typeof InventoryIdRoute
   '/login': typeof LoginRoute
   '/users': typeof UsersRoute
@@ -83,6 +90,7 @@ export interface FileRoutesByTo {
   '/firewall': typeof FirewallRoute
   '/inventory': typeof InventoryRouteWithChildren
   '/search': typeof SearchRoute
+  '/topology': typeof TopologyRoute
   '/inventory/$id': typeof InventoryIdRoute
   '/login': typeof LoginRoute
   '/users': typeof UsersRoute
@@ -95,6 +103,7 @@ export interface FileRoutesById {
   '/firewall': typeof FirewallRoute
   '/inventory': typeof InventoryRouteWithChildren
   '/search': typeof SearchRoute
+  '/topology': typeof TopologyRoute
   '/inventory/$id': typeof InventoryIdRoute
   '/login': typeof LoginRoute
   '/users': typeof UsersRoute
@@ -108,6 +117,7 @@ export interface FileRouteTypes {
     | '/firewall'
     | '/inventory'
     | '/search'
+    | '/topology'
     | '/inventory/$id'
     | '/login'
     | '/users'
@@ -119,6 +129,7 @@ export interface FileRouteTypes {
     | '/firewall'
     | '/inventory'
     | '/search'
+    | '/topology'
     | '/inventory/$id'
     | '/login'
     | '/users'
@@ -130,6 +141,7 @@ export interface FileRouteTypes {
     | '/firewall'
     | '/inventory'
     | '/search'
+    | '/topology'
     | '/inventory/$id'
     | '/login'
     | '/users'
@@ -142,6 +154,7 @@ export interface RootRouteChildren {
   FirewallRoute: typeof FirewallRoute
   InventoryRoute: typeof InventoryRouteWithChildren
   SearchRoute: typeof SearchRoute
+  TopologyRoute: typeof TopologyRoute
   LoginRoute: typeof LoginRoute
   UsersRoute: typeof UsersRoute
 }
@@ -190,6 +203,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SearchRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/topology': {
+      id: '/topology'
+      path: '/topology'
+      fullPath: '/topology'
+      preLoaderRoute: typeof TopologyRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/inventory/$id': {
       id: '/inventory/$id'
       path: '/$id'
@@ -233,6 +253,7 @@ const rootRouteChildren: RootRouteChildren = {
   FirewallRoute: FirewallRoute,
   InventoryRoute: InventoryRouteWithChildren,
   SearchRoute: SearchRoute,
+  TopologyRoute: TopologyRoute,
   LoginRoute: LoginRoute,
   UsersRoute: UsersRoute,
 }
