@@ -3,6 +3,7 @@ export type Role = "admin" | "user";
 export type PageKey =
   | "dashboard"
   | "inventory"
+  | "topology"
   | "search"
   | "firewall"
   | "cisco"

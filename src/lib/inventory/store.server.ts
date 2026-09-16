@@ -1,4 +1,5 @@
 import { readFile, rename, writeFile } from "node:fs/promises";
+import { join } from "node:path";
 import { createSeedStore } from "./seed";
 import type { InventoryRecord, InventoryStore } from "./types";
 import { dataFile, dataRoot, ensureDataDir } from "@/lib/data-path.server";
@@ -36,21 +37,46 @@ async function tryLoad(path: string): Promise<InventoryStore | null> {
   }
 }
 
+function hasRecords(store: InventoryStore | null): store is InventoryStore {
+  return !!store && Array.isArray(store.records) && store.records.length > 0;
+}
+
+/**
+ * Prefer runtime data dir. If missing/empty, fall back to bundled sample
+ * under process.cwd()/data, then generated seed — so first boot on IIS
+ * is never a blank table when sample data ships with the package.
+ */
 async function resolveStore(): Promise<InventoryStore> {
   if (memory) return memory;
 
   await ensureDataDir();
   const path = dataFile(FILE_NAME);
   const loaded = await tryLoad(path);
-  if (loaded) {
+  if (hasRecords(loaded)) {
     persistPath = path;
     memory = loaded;
     return loaded;
   }
 
+  const bundledPath = join(process.cwd(), "data", FILE_NAME);
+  const bundled = await tryLoad(bundledPath);
+  if (hasRecords(bundled)) {
+    memory = bundled;
+    try {
+      await persist(bundled);
+    } catch {
+      // Keep in-memory even if persist fails (read-only volume).
+    }
+    return bundled;
+  }
+
   const seed = createSeedStore();
   memory = seed;
-  await persist(seed);
+  try {
+    await persist(seed);
+  } catch {
+    // still serve seed from memory
+  }
   return seed;
 }
 

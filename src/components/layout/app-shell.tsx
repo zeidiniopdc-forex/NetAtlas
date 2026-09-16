@@ -2,6 +2,7 @@ import { Link, useNavigate, useRouterState } from "@tanstack/react-router";
 import {
   Cable,
   Command,
+  GitBranch,
   LayoutDashboard,
   LogIn,
   LogOut,
@@ -32,6 +33,7 @@ import { cn } from "@/lib/utils";
 const NAV: { to: string; label: string; icon: typeof LayoutDashboard; page: PageKey }[] = [
   { to: "/", label: "داشبورد", icon: LayoutDashboard, page: "dashboard" },
   { to: "/inventory", label: "موجودی", icon: Table2, page: "inventory" },
+  { to: "/topology", label: "توپولوژی", icon: GitBranch, page: "topology" },
   { to: "/search", label: "جستجوی ارتباطات", icon: Search, page: "search" },
   { to: "/firewall", label: "فایروال", icon: Shield, page: "firewall" },
   { to: "/cisco", label: "دستورات Cisco", icon: Command, page: "cisco" },

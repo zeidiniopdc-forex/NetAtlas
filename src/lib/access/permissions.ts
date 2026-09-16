@@ -3,6 +3,7 @@ import type { PageKey, Role, RolePermissions } from "./types";
 export const ALL_PAGES: PageKey[] = [
   "dashboard",
   "inventory",
+  "topology",
   "search",
   "firewall",
   "cisco",
@@ -13,6 +14,7 @@ export const ALL_PAGES: PageKey[] = [
 export const PAGE_LABELS: Record<PageKey, string> = {
   dashboard: "داشبورد",
   inventory: "موجودی",
+  topology: "توپولوژی",
   search: "جستجوی ارتباطات",
   firewall: "فایروال",
   cisco: "دستورات Cisco",
@@ -23,6 +25,7 @@ export const PAGE_LABELS: Record<PageKey, string> = {
 export const PAGE_PATHS: Record<PageKey, string> = {
   dashboard: "/",
   inventory: "/inventory",
+  topology: "/topology",
   search: "/search",
   firewall: "/firewall",
   cisco: "/cisco",
@@ -33,6 +36,7 @@ export const PAGE_PATHS: Record<PageKey, string> = {
 export function pathToPageKey(pathname: string): PageKey | null {
   if (pathname === "/" || pathname === "") return "dashboard";
   if (pathname.startsWith("/inventory")) return "inventory";
+  if (pathname.startsWith("/topology")) return "topology";
   if (pathname.startsWith("/search")) return "search";
   if (pathname.startsWith("/firewall")) return "firewall";
   if (pathname.startsWith("/cisco")) return "cisco";
@@ -48,7 +52,7 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<Role, RolePermissions> = {
     canEdit: true,
   },
   user: {
-    pages: ["dashboard", "inventory", "search"],
+    pages: ["dashboard", "inventory", "topology", "search"],
     canEdit: false,
   },
 };

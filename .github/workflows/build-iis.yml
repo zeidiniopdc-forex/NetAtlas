@@ -66,17 +66,40 @@ jobs:
           cp iis/web.config iis-package/web.config
           mkdir -p iis-package/logs
 
-          # Runtime data is created on the server; do not ship mutable production data.
-          echo "NetAtlas runtime data is stored under the configured data path on IIS." > iis-package/DATA-LOCATION.txt
+          # Bundled sample data (read by store fallback when runtime data is empty)
+          mkdir -p iis-package/data
+          if [ -f data/inventory.json ]; then
+            cp data/inventory.json iis-package/data/inventory.json
+          fi
+
+          cat > iis-package/DATA-LOCATION.txt << 'EOF'
+NetAtlas v3 — مسیر داده روی IIS
+
+1) پوشه runtime را بسازید (خارج از site):
+   D:\NetAtlas\data
+
+2) به هویت App Pool دسترسی Modify بدهید:
+   IIS AppPool\YourSiteName
+
+3) در web.config مقدار زیر تنظیم شده:
+   INVENTORY_DATA_DIR = D:/NetAtlas/data
+
+4) اگر inventory.json در آن مسیر خالی باشد، اپ از data/inventory.json
+   داخل پکیج (نمونه) seed می‌کند و در مسیر runtime ذخیره می‌کند.
+
+5) لاگ‌ها: .\logs\node
+EOF
+
           echo "Package branch: ${GITHUB_REF_NAME:-unknown}" > iis-package/PACKAGE-INFO.txt
           echo "Built at: $(date -u +%Y-%m-%dT%H:%M:%SZ)" >> iis-package/PACKAGE-INFO.txt
+          echo "NetAtlas version track: v3" >> iis-package/PACKAGE-INFO.txt
 
           sed -i 's|arguments="\\.\\\\.output\\\\server\\\\index\\.mjs"|arguments=".\\server\\index.mjs"|g' iis-package/web.config || true
           sed -i 's|arguments="\\./\\.output/server/index\\.mjs"|arguments="./server/index.mjs"|g' iis-package/web.config || true
           if ! grep -q NODE_SKIP_PLATFORM_CHECK iis-package/web.config; then
             sed -i 's|</environmentVariables>|<environmentVariable name="NODE_SKIP_PLATFORM_CHECK" value="1" />\n      </environmentVariables>|' iis-package/web.config || true
           fi
-          find iis-package -type f | head -100
+          find iis-package -type f | head -120
 
       - name: Upload IIS package
         uses: actions/upload-artifact@v4
