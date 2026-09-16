@@ -1,6 +1,14 @@
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
-import { AlertTriangle, Filter, GitBranch, Plus, Search, Trash2, X } from "lucide-react";
+import {
+  AlertTriangle,
+  Filter,
+  GitBranch,
+  Plus,
+  Search,
+  Trash2,
+  X,
+} from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -33,8 +41,19 @@ const kinds: TopologyEndpointKind[] = [
 ];
 const types: TopologyLinkType[] = ["copper", "fiber", "trunk", "access", "logical"];
 
+function newId() {
+  try {
+    if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
+      return crypto.randomUUID();
+    }
+  } catch {
+    /* ignore */
+  }
+  return `link-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+}
+
 const blank = (): TopologyLink => ({
-  id: crypto.randomUUID(),
+  id: newId(),
   type: "copper",
   endpointA: { kind: "wallNode", ref: "", label: "" },
   endpointB: { kind: "switchPort", ref: "", label: "" },
@@ -52,11 +71,11 @@ export function NetworkTopologyPanel({
 }: {
   showFilters?: boolean;
 }) {
-  const { data = [] } = useTopology();
+  const { data = [], isError, error, refetch } = useTopology();
   const { upsert, remove } = useTopologyMutations();
   const { canEdit } = useAccess();
 
-  const [form, setForm] = useState<TopologyLink>(blank());
+  const [form, setForm] = useState<TopologyLink>(() => blank());
   const [traceStartKey, setTraceStartKey] = useState("");
   const [traceDestKey, setTraceDestKey] = useState("");
   const [showAllReachable, setShowAllReachable] = useState(false);
@@ -86,15 +105,16 @@ export function NetworkTopologyPanel({
     const q = filterQ.trim().toLowerCase();
     return data.filter((l) => {
       if (filterSite && (l.site?.trim() ?? "") !== filterSite) return false;
-      if (filterBuilding && (l.building?.trim() ?? "") !== filterBuilding) return false;
+      if (filterBuilding && (l.building?.trim() ?? "") !== filterBuilding)
+        return false;
       if (filterStatus && l.status !== filterStatus) return false;
       if (filterType && l.type !== filterType) return false;
       if (!q) return true;
       const hay = [
-        l.endpointA.label,
-        l.endpointA.ref,
-        l.endpointB.label,
-        l.endpointB.ref,
+        l.endpointA?.label,
+        l.endpointA?.ref,
+        l.endpointB?.label,
+        l.endpointB?.ref,
         l.cableNumber,
         l.site,
         l.building,
@@ -124,7 +144,6 @@ export function NetworkTopologyPanel({
     [endpoints, traceDestKey],
   );
 
-  // Trace uses full graph so path can cross filtered-out links when needed
   const traced = useMemo(() => {
     if (!startEndpoint) return null;
     return traceTopology(data, startEndpoint, destEndpoint ?? undefined);
@@ -136,7 +155,11 @@ export function NetworkTopologyPanel({
   }, [data, startEndpoint, showAllReachable]);
 
   const hasActiveFilters =
-    !!filterSite || !!filterBuilding || !!filterStatus || !!filterType || !!filterQ;
+    !!filterSite ||
+    !!filterBuilding ||
+    !!filterStatus ||
+    !!filterType ||
+    !!filterQ;
 
   const clearFilters = () => {
     setFilterSite("");
@@ -162,8 +185,26 @@ export function NetworkTopologyPanel({
         toast.success("اتصال توپولوژی ذخیره شد");
         setForm(blank());
       },
-      onError: (e) => toast.error(e.message),
+      onError: (e) =>
+        toast.error(e instanceof Error ? e.message : "ذخیره انجام نشد"),
     });
+
+  if (isError) {
+    return (
+      <Card className="rounded-xl">
+        <CardContent className="flex flex-col items-center gap-3 py-12 text-center">
+          <AlertTriangle className="size-8 text-danger" />
+          <p className="text-sm font-medium">خطا در خواندن توپولوژی</p>
+          <p className="text-xs text-muted">
+            {error instanceof Error ? error.message : "خطای ناشناخته"}
+          </p>
+          <Button variant="secondary" size="sm" onClick={() => void refetch()}>
+            تلاش مجدد
+          </Button>
+        </CardContent>
+      </Card>
+    );
+  }
 
   return (
     <Card className="rounded-xl">
@@ -196,7 +237,7 @@ export function NetworkTopologyPanel({
 
       <CardContent className="space-y-5">
         {showFilters ? (
-          <div className="rounded-lg border border-border p-3 space-y-3">
+          <div className="space-y-3 rounded-lg border border-border p-3">
             <div className="flex items-center justify-between gap-2">
               <div className="flex items-center gap-2 text-sm font-medium">
                 <Filter className="size-4" />
@@ -280,7 +321,6 @@ export function NetworkTopologyPanel({
           </div>
         ) : null}
 
-        {/* Free-form Trace */}
         <div className="space-y-3 rounded-lg border border-border p-3">
           <div className="flex items-center gap-2 text-sm font-medium">
             <Search className="size-4" />
@@ -334,7 +374,9 @@ export function NetworkTopologyPanel({
               onClick={() => setShowAllReachable((v) => !v)}
             >
               <GitBranch className="size-4" />
-              {showAllReachable ? "مخفی کردن لیست" : "نمایش همه نقاط قابل‌دسترسی"}
+              {showAllReachable
+                ? "مخفی کردن لیست"
+                : "نمایش همه نقاط قابل‌دسترسی"}
             </Button>
           ) : null}
 
@@ -353,29 +395,32 @@ export function NetworkTopologyPanel({
                 مبدا
               </div>
               <div className="flex flex-col gap-1.5">
-                {reachable.map((r) => (
-                  <button
-                    key={endpointKey(r.destination!)}
-                    type="button"
-                    className="flex flex-wrap items-center gap-2 rounded-md bg-surface-2 px-2 py-1.5 text-start text-xs hover:bg-surface"
-                    onClick={() => {
-                      setTraceDestKey(endpointKey(r.destination!));
-                      setShowAllReachable(false);
-                    }}
-                  >
-                    <Badge variant="outline">{r.hops} hop</Badge>
-                    <span>{r.destination!.label || r.destination!.ref}</span>
-                    <span className="text-faint">
-                      ({endpointKindLabels[r.destination!.kind]})
-                    </span>
-                  </button>
-                ))}
+                {reachable.map((r) => {
+                  if (!r.destination) return null;
+                  const key = endpointKey(r.destination);
+                  return (
+                    <button
+                      key={key}
+                      type="button"
+                      className="flex flex-wrap items-center gap-2 rounded-md bg-surface-2 px-2 py-1.5 text-start text-xs hover:bg-surface"
+                      onClick={() => {
+                        setTraceDestKey(key);
+                        setShowAllReachable(false);
+                      }}
+                    >
+                      <Badge variant="outline">{r.hops} hop</Badge>
+                      <span>{r.destination.label || r.destination.ref}</span>
+                      <span className="text-faint">
+                        ({endpointKindLabels[r.destination.kind]})
+                      </span>
+                    </button>
+                  );
+                })}
               </div>
             </div>
           ) : null}
         </div>
 
-        {/* Add link form */}
         <div className="grid gap-3 rounded-lg border border-border p-3 md:grid-cols-2">
           {(["endpointA", "endpointB"] as const).map((side, i) => (
             <div key={side} className="space-y-2">
@@ -474,7 +519,6 @@ export function NetworkTopologyPanel({
           </div>
         ) : null}
 
-        {/* Links table */}
         <div className="overflow-x-auto">
           <table className="w-full min-w-[900px] text-sm">
             <thead className="text-xs text-muted">
@@ -492,12 +536,9 @@ export function NetworkTopologyPanel({
             <tbody>
               {filtered.length === 0 ? (
                 <tr>
-                  <td
-                    colSpan={8}
-                    className="px-2 py-8 text-center text-muted"
-                  >
+                  <td colSpan={8} className="px-2 py-8 text-center text-muted">
                     {data.length === 0
-                      ? "اتصالی ثبت نشده است."
+                      ? "اتصالی ثبت نشده است. از فرم بالا یک اتصال اضافه کنید."
                       : "با فیلتر فعلی نتیجه‌ای نیست."}
                   </td>
                 </tr>
@@ -505,15 +546,17 @@ export function NetworkTopologyPanel({
                 filtered.map((l) => (
                   <tr key={l.id} className="border-t border-border">
                     <td className="px-2 py-2">
-                      {l.endpointA.label || l.endpointA.ref}
+                      {l.endpointA?.label || l.endpointA?.ref || "—"}
                     </td>
                     <td className="px-2 py-2">
-                      {l.endpointB.label || l.endpointB.ref}
+                      {l.endpointB?.label || l.endpointB?.ref || "—"}
                     </td>
-                    <td className="px-2 py-2">{linkTypeLabels[l.type]}</td>
+                    <td className="px-2 py-2">
+                      {linkTypeLabels[l.type] ?? l.type}
+                    </td>
                     <td className="px-2 py-2">
                       <Badge variant={l.status === "active" ? "ok" : "danger"}>
-                        {statusLabels[l.status]}
+                        {statusLabels[l.status] ?? l.status}
                       </Badge>
                     </td>
                     <td className="px-2 py-2 text-xs">{l.site || "—"}</td>
@@ -539,7 +582,17 @@ export function NetworkTopologyPanel({
                           <Button
                             variant="ghost"
                             size="icon"
-                            onClick={() => remove.mutate(l.id)}
+                            onClick={() =>
+                              remove.mutate(l.id, {
+                                onSuccess: () => toast.success("حذف شد"),
+                                onError: (e) =>
+                                  toast.error(
+                                    e instanceof Error
+                                      ? e.message
+                                      : "حذف انجام نشد",
+                                  ),
+                              })
+                            }
                             title="حذف"
                           >
                             <Trash2 className="size-4" />
@@ -602,7 +655,7 @@ function TraceResultView({
             className="flex items-center gap-2"
           >
             <Badge variant="outline">
-              {endpointKindLabels[p.kind]} · {p.label || p.ref}
+              {endpointKindLabels[p.kind] ?? p.kind} · {p.label || p.ref}
             </Badge>
             {i < traced.path.length - 1 ? (
               <span className="text-muted">↔</span>
@@ -621,9 +674,9 @@ function TraceResultView({
             >
               <span className="tabular-nums text-faint">#{i + 1}</span>
               <Badge variant={link.status === "active" ? "ok" : "danger"}>
-                {statusLabels[link.status]}
+                {statusLabels[link.status] ?? link.status}
               </Badge>
-              <span>{linkTypeLabels[link.type]}</span>
+              <span>{linkTypeLabels[link.type] ?? link.type}</span>
               {link.cableNumber ? (
                 <span className="font-mono" dir="ltr">
                   کابل {link.cableNumber}

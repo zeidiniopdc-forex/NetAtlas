@@ -47,6 +47,23 @@ export type TopologyHealth = {
   issues: string[];
 };
 
+const KIND_SET = new Set<TopologyEndpointKind>([
+  "wallNode",
+  "patchPanel",
+  "switchPort",
+  "routerInterface",
+  "firewall",
+  "vlan",
+]);
+
+const TYPE_SET = new Set<TopologyLinkType>([
+  "copper",
+  "fiber",
+  "trunk",
+  "access",
+  "logical",
+]);
+
 export const endpointKindLabels: Record<TopologyEndpointKind, string> = {
   wallNode: "نود دیواری",
   patchPanel: "پچ‌پنل",
@@ -69,12 +86,67 @@ export const statusLabels: Record<TopologyStatus, string> = {
   down: "قطع",
 };
 
-export function normalizeTopologyEndpoint(e: TopologyEndpoint): TopologyEndpoint {
+function text(value: unknown) {
+  return typeof value === "string" ? value.trim() : "";
+}
+
+function asKind(value: unknown): TopologyEndpointKind {
+  return KIND_SET.has(value as TopologyEndpointKind)
+    ? (value as TopologyEndpointKind)
+    : "wallNode";
+}
+
+function asType(value: unknown): TopologyLinkType {
+  return TYPE_SET.has(value as TopologyLinkType)
+    ? (value as TopologyLinkType)
+    : "copper";
+}
+
+function asStatus(value: unknown): TopologyStatus {
+  return value === "down" ? "down" : "active";
+}
+
+export function normalizeTopologyEndpoint(
+  e?: Partial<TopologyEndpoint> | null,
+): TopologyEndpoint {
+  const ref = text(e?.ref);
+  const label = text(e?.label) || ref;
   return {
-    kind: e.kind,
-    ref: e.ref.trim(),
-    label: (e.label || e.ref).trim(),
+    kind: asKind(e?.kind),
+    ref,
+    label,
   };
+}
+
+/** Sanitize raw JSON links so UI never crashes on partial records. */
+export function sanitizeTopologyLinks(input: unknown): TopologyLink[] {
+  if (!Array.isArray(input)) return [];
+  const now = new Date().toISOString();
+  const out: TopologyLink[] = [];
+
+  for (const raw of input) {
+    if (!raw || typeof raw !== "object") continue;
+    const item = raw as Partial<TopologyLink> & {
+      endpointA?: Partial<TopologyEndpoint>;
+      endpointB?: Partial<TopologyEndpoint>;
+    };
+    const id = text(item.id) || `tmp-${out.length}`;
+    out.push({
+      id,
+      type: asType(item.type),
+      endpointA: normalizeTopologyEndpoint(item.endpointA),
+      endpointB: normalizeTopologyEndpoint(item.endpointB),
+      cableNumber: text(item.cableNumber) || undefined,
+      status: asStatus(item.status),
+      site: text(item.site) || undefined,
+      building: text(item.building) || undefined,
+      notes: text(item.notes) || undefined,
+      createdAt: text(item.createdAt) || now,
+      updatedAt: text(item.updatedAt) || now,
+    });
+  }
+
+  return out;
 }
 
 export function endpointKey(e: TopologyEndpoint) {
@@ -97,6 +169,7 @@ export function buildTopologyGraph(links: TopologyLink[], includeDown = false) {
     if (!includeDown && link.status !== "active") continue;
     const a = normalizeTopologyEndpoint(link.endpointA);
     const b = normalizeTopologyEndpoint(link.endpointB);
+    if (!a.ref || !b.ref) continue;
     const ak = endpointKey(a);
     const bk = endpointKey(b);
     if (!graph.has(ak)) graph.set(ak, []);
@@ -122,27 +195,24 @@ export function collectEndpoints(links: TopologyLink[]): TopologyEndpoint[] {
 }
 
 export function summarizeTopologyHealth(links: TopologyLink[]): TopologyHealth {
-  const issues = findTopologyIssues(links);
-  const endpoints = collectEndpoints(links);
+  const safe = sanitizeTopologyLinks(links);
+  const issues = findTopologyIssues(safe);
+  const endpoints = collectEndpoints(safe);
   return {
-    totalLinks: links.length,
-    activeLinks: links.filter((l) => l.status === "active").length,
-    downLinks: links.filter((l) => l.status === "down").length,
+    totalLinks: safe.length,
+    activeLinks: safe.filter((l) => l.status === "active").length,
+    downLinks: safe.filter((l) => l.status === "down").length,
     uniqueEndpoints: endpoints.length,
     issues,
   };
 }
 
-/**
- * BFS path find from start to optional destination.
- * When destination is omitted, returns the first reachable neighbor path (legacy behavior).
- * When destination is provided, finds shortest active path between the two endpoints.
- */
 export function traceTopology(
   links: TopologyLink[],
   start: TopologyEndpoint,
   destination?: TopologyEndpoint,
 ): TopologyTraceResult {
+  const safe = sanitizeTopologyLinks(links);
   const normalizedStart = normalizeTopologyEndpoint(start);
   const normalizedDestination = destination
     ? normalizeTopologyEndpoint(destination)
@@ -150,7 +220,7 @@ export function traceTopology(
   const destinationKey = normalizedDestination
     ? endpointKey(normalizedDestination)
     : undefined;
-  const graph = buildTopologyGraph(links);
+  const graph = buildTopologyGraph(safe);
   const startKey = endpointKey(normalizedStart);
 
   if (destinationKey && startKey === destinationKey) {
@@ -189,7 +259,6 @@ export function traceTopology(
       const nextPath = [...current.path, edge.endpoint];
       const nextLinks = [...current.links, edge.link];
 
-      // If no destination specified, return first hop path (backward compatible).
       if (!destinationKey) {
         return {
           found: true,
@@ -224,7 +293,7 @@ export function traceTopology(
     }
   }
 
-  const downGraph = buildTopologyGraph(links, true);
+  const downGraph = buildTopologyGraph(safe, true);
   const downLinksEncountered = (downGraph.get(startKey) ?? [])
     .filter((x) => x.link.status === "down")
     .map((x) => x.link);
@@ -244,8 +313,9 @@ export function traceAllReachable(
   links: TopologyLink[],
   start: TopologyEndpoint,
 ): TopologyTraceResult[] {
+  const safe = sanitizeTopologyLinks(links);
   const normalizedStart = normalizeTopologyEndpoint(start);
-  const graph = buildTopologyGraph(links);
+  const graph = buildTopologyGraph(safe);
   const startKey = endpointKey(normalizedStart);
   const queue: Array<{
     key: string;
@@ -293,10 +363,11 @@ export function traceAllReachable(
 }
 
 export function findTopologyIssues(links: TopologyLink[]) {
+  const safe = sanitizeTopologyLinks(links);
   const issues: string[] = [];
   const seen = new Set<string>();
 
-  for (const l of links) {
+  for (const l of safe) {
     const a = normalizeTopologyEndpoint(l.endpointA);
     const b = normalizeTopologyEndpoint(l.endpointB);
     const key = topologyKey(a, b);
@@ -305,7 +376,7 @@ export function findTopologyIssues(links: TopologyLink[]) {
     if (a.kind === b.kind && a.ref === b.ref)
       issues.push(`لینک ${l.id} به خودش متصل است.`);
     if (seen.has(key))
-      issues.push(`لینک تکراری بین ${a.label} و ${b.label}.`);
+      issues.push(`لینک تکراری بین ${a.label || a.ref} و ${b.label || b.ref}.`);
     seen.add(key);
   }
 
