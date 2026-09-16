@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import { toast } from "sonner";
 import { NetworkAssetsPanel } from "@/components/network/network-assets-panel";
 import { NetworkDataQualityPanel } from "@/components/network/network-data-quality-panel";
+import { IpIssuesList } from "@/components/network/ip-issues-list";
 import { NetworkPortPanel } from "@/components/network/network-port-panel";
 import { NetworkVlanPanel } from "@/components/network/network-vlan-panel";
 import { RecordForm } from "@/components/inventory/record-form";
@@ -167,12 +168,13 @@ function InventoryPage() {
                 <span>{ipIssues.length.toLocaleString("fa-IR")} مورد نیازمند بررسی IP</span>
               </div>
             )}
-            <p className="mt-2 text-xs text-muted">کنترل اولیه برای IP تکراری و نامعتبر</p>
+            <p className="mt-2 text-xs text-muted">کنترل اولیه برای IP تکراری و نامعتبر — جزئیات قابل‌کلیک در پایین</p>
           </CardContent>
         </Card>
       </div>
 
       <NetworkDataQualityPanel records={records} />
+      <IpIssuesList records={records} />
       <NetworkVlanPanel records={records} />
 
       <Card className="rounded-xl">
