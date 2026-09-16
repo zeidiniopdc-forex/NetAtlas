@@ -36,7 +36,7 @@ const EMPTY_COUNTS: Record<AssetKind, number> = {
   serverRoom: 0,
 };
 
-function clean(value: string | undefined) {
+function clean(value: string | undefined | null) {
   return value?.trim() ?? "";
 }
 
@@ -51,7 +51,7 @@ export function buildAssetRegistry(records: InventoryRecord[]): AssetRegistry {
 
   const add = (
     kind: AssetKind,
-    name: string | undefined,
+    name: string | undefined | null,
     record: InventoryRecord,
     managementIp = "",
     location = "",
@@ -75,7 +75,7 @@ export function buildAssetRegistry(records: InventoryRecord[]): AssetRegistry {
       interfaces: [],
       records: 0,
       activeRecords: 0,
-      status: "inactive",
+      status: "inactive" as RecordStatus,
       notes: "",
       createdAt: record.createdAt || now,
       updatedAt: record.updatedAt || now,
@@ -95,7 +95,10 @@ export function buildAssetRegistry(records: InventoryRecord[]): AssetRegistry {
       managementIpOwners.set(mgmt, owners);
     }
 
-    const iface = kind === "switch" ? clean(record.switchInterface) : clean(record.routerInterface);
+    const iface =
+      kind === "switch"
+        ? clean(record.switchInterface)
+        : clean(record.routerInterface);
     if (iface && !current.interfaces.includes(iface)) current.interfaces.push(iface);
     map.set(key, current);
   };
@@ -106,8 +109,18 @@ export function buildAssetRegistry(records: InventoryRecord[]): AssetRegistry {
     add("rack", record.rack, record, "", clean(record.serverRoom));
     add("serverRoom", record.serverRoom, record, "", clean(record.building));
 
-    for (const firewall of record.firewallAccess) {
-      add("firewall", firewall.destination || firewall.service, record, "", clean(record.serverRoom));
+    const firewallRules = Array.isArray(record.firewallAccess)
+      ? record.firewallAccess
+      : [];
+    for (const firewall of firewallRules) {
+      if (!firewall) continue;
+      add(
+        "firewall",
+        firewall.destination || firewall.service,
+        record,
+        "",
+        clean(record.serverRoom),
+      );
     }
   }
 
@@ -120,7 +133,9 @@ export function buildAssetRegistry(records: InventoryRecord[]): AssetRegistry {
   for (const asset of map.values()) byKind[asset.kind] += 1;
 
   return {
-    assets: [...map.values()].sort((a, b) => a.kind.localeCompare(b.kind) || a.name.localeCompare(b.name, "fa")),
+    assets: [...map.values()].sort(
+      (a, b) => a.kind.localeCompare(b.kind) || a.name.localeCompare(b.name, "fa"),
+    ),
     byKind,
     duplicateManagementIps,
   };

@@ -25,11 +25,15 @@ export type VlanSummary = {
   networks: string[];
 };
 
-export function normalizeIp(value: string) {
-  return value.trim().replace(/\s+/g, "");
+function text(value?: string | null) {
+  return value?.trim() ?? "";
 }
 
-export function isValidIpv4(value: string) {
+export function normalizeIp(value?: string | null) {
+  return text(value).replace(/\s+/g, "");
+}
+
+export function isValidIpv4(value?: string | null) {
   const ip = normalizeIp(value);
   const parts = ip.split(".");
   if (parts.length !== 4 || parts.some((p) => !/^\d+$/.test(p))) return false;
@@ -82,18 +86,20 @@ export function findIpIssues(records: InventoryRecord[]): IpFinding[] {
   for (const [ip, recordIds] of byIp) {
     if (recordIds.length > 1) findings.push({ ip, status: "duplicate", recordIds });
   }
-  return findings.sort((a, b) => a.ip.localeCompare(b.ip, undefined, { numeric: true }));
+  return findings.sort((a, b) =>
+    a.ip.localeCompare(b.ip, undefined, { numeric: true }),
+  );
 }
 
-export function vlanNumber(value: string) {
-  const match = value.match(/\d+/);
+export function vlanNumber(value?: string | null) {
+  const match = text(value).match(/\d+/);
   return match?.[0] ?? "";
 }
 
 export function buildVlanSummary(records: InventoryRecord[]): VlanSummary[] {
   const map = new Map<string, VlanSummary>();
   for (const record of records) {
-    const name = record.vlan.trim();
+    const name = text(record.vlan);
     if (!name) continue;
     const number = vlanNumber(name);
     const key = number || name.toLowerCase();
@@ -107,8 +113,9 @@ export function buildVlanSummary(records: InventoryRecord[]): VlanSummary[] {
     };
     current.records += 1;
     if (record.status === "active") current.active += 1;
-    if (record.network.trim() && !current.networks.includes(record.network.trim())) {
-      current.networks.push(record.network.trim());
+    const network = text(record.network);
+    if (network && !current.networks.includes(network)) {
+      current.networks.push(network);
     }
     map.set(key, current);
   }
