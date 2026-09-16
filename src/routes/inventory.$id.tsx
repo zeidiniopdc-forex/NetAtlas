@@ -25,6 +25,12 @@ type RecordSearch = {
   edit?: boolean;
 };
 
+function errorText(err: unknown) {
+  if (err instanceof Error && err.message) return err.message;
+  if (typeof err === "string" && err) return err;
+  return "ذخیره انجام نشد";
+}
+
 export const Route = createFileRoute("/inventory/$id")({
   validateSearch: (search: Record<string, unknown>): RecordSearch => ({
     edit:
@@ -111,6 +117,7 @@ function RecordPage() {
                   toast.success("حذف شد");
                   void navigate({ to: "/inventory" });
                 },
+                onError: (e) => toast.error(errorText(e)),
               });
             }}
           >
@@ -177,7 +184,7 @@ function RecordPage() {
                     toast.success("تغییرات روی JSON سرور ذخیره شد");
                     closeEdit(false);
                   },
-                  onError: () => toast.error("ذخیره انجام نشد"),
+                  onError: (e) => toast.error(errorText(e)),
                 });
               }}
             />

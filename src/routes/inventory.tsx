@@ -37,6 +37,12 @@ import { useAccess } from "@/lib/access/session";
 
 export const Route = createFileRoute("/inventory")({ component: InventoryPage });
 
+function errorText(err: unknown) {
+  if (err instanceof Error && err.message) return err.message;
+  if (typeof err === "string" && err) return err;
+  return "ذخیره انجام نشد";
+}
+
 function InventoryPage() {
   const { data, isLoading, error, refetch } = useInventory();
   const { upsert, seed } = useInventoryMutations();
@@ -116,8 +122,7 @@ function InventoryPage() {
                         toast.success("داده نمونه بارگذاری شد");
                         void refetch();
                       },
-                      onError: (e) =>
-                        toast.error(e instanceof Error ? e.message : "بارگذاری نمونه ناموفق"),
+                      onError: (e) => toast.error(errorText(e)),
                     })
                   }
                 >
@@ -255,7 +260,7 @@ function InventoryPage() {
                   toast.success("روی فایل JSON سرور ذخیره شد");
                   setCreateOpen(false);
                 },
-                onError: () => toast.error("ذخیره انجام نشد"),
+                onError: (e) => toast.error(errorText(e)),
               });
             }}
           />
@@ -276,7 +281,7 @@ function InventoryPage() {
                     toast.success("تغییرات روی JSON سرور ذخیره شد");
                     setEditing(null);
                   },
-                  onError: () => toast.error("ذخیره انجام نشد"),
+                  onError: (e) => toast.error(errorText(e)),
                 });
               }}
             />
