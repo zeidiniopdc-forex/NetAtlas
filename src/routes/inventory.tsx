@@ -173,8 +173,8 @@ function InventoryPage() {
         </Card>
       </div>
 
-      <NetworkDataQualityPanel records={records} />
-      <IpIssuesList records={records} />
+      <NetworkDataQualityPanel records={records} onEditRecord={setEditing} />
+      <IpIssuesList records={records} onEditRecord={setEditing} />
       <NetworkVlanPanel records={records} />
 
       <Card className="rounded-xl">
@@ -266,6 +266,7 @@ function InventoryPage() {
           <DialogHeader><DialogTitle>ویرایش رکورد</DialogTitle></DialogHeader>
           {editing ? (
             <RecordForm
+              key={editing.id}
               initial={editing}
               busy={upsert.isPending}
               onCancel={() => setEditing(null)}
