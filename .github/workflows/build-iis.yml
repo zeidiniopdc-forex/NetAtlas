@@ -66,29 +66,21 @@ jobs:
           cp iis/web.config iis-package/web.config
           mkdir -p iis-package/logs
 
-          # Bundled sample data (read by store fallback when runtime data is empty)
+          # Bundled sample data (store fallback when runtime data is empty)
           mkdir -p iis-package/data
           if [ -f data/inventory.json ]; then
             cp data/inventory.json iis-package/data/inventory.json
           fi
 
-          cat > iis-package/DATA-LOCATION.txt << 'EOF'
-NetAtlas v3 — مسیر داده روی IIS
-
-1) پوشه runtime را بسازید (خارج از site):
-   D:\NetAtlas\data
-
-2) به هویت App Pool دسترسی Modify بدهید:
-   IIS AppPool\YourSiteName
-
-3) در web.config مقدار زیر تنظیم شده:
-   INVENTORY_DATA_DIR = D:/NetAtlas/data
-
-4) اگر inventory.json در آن مسیر خالی باشد، اپ از data/inventory.json
-   داخل پکیج (نمونه) seed می‌کند و در مسیر runtime ذخیره می‌کند.
-
-5) لاگ‌ها: .\logs\node
-EOF
+          {
+            echo "NetAtlas v3 - IIS data path notes"
+            echo ""
+            echo "1) Create runtime folder outside site, e.g. D:/NetAtlas/data"
+            echo "2) Grant Modify to IIS AppPool identity"
+            echo "3) web.config sets INVENTORY_DATA_DIR=D:/NetAtlas/data"
+            echo "4) If that path is empty, app seeds from package data/inventory.json"
+            echo "5) Logs: ./logs/node"
+          } > iis-package/DATA-LOCATION.txt
 
           echo "Package branch: ${GITHUB_REF_NAME:-unknown}" > iis-package/PACKAGE-INFO.txt
           echo "Built at: $(date -u +%Y-%m-%dT%H:%M:%SZ)" >> iis-package/PACKAGE-INFO.txt
