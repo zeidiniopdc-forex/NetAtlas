@@ -8,7 +8,7 @@ import {
   Pencil,
   XCircle,
 } from "lucide-react";
-import { useMemo, useState } from "react";
+import { Fragment, useMemo, useState } from "react";
 import type { InventoryRecord } from "@/lib/inventory/types";
 import {
   analyzeDataQuality,
@@ -190,16 +190,13 @@ export function NetworkDataQualityPanel({
                   const open = expandedId === finding.id;
                   const firstId = finding.recordIds[0];
                   return (
-                    <>
+                    <Fragment key={finding.id}>
                       <tr
-                        key={finding.id}
                         className={cn(
-                          "border-t border-border cursor-pointer transition",
+                          "cursor-pointer border-t border-border transition",
                           open ? "bg-accent/5" : "hover:bg-surface-2/60",
                         )}
-                        onClick={() =>
-                          setExpandedId(open ? null : finding.id)
-                        }
+                        onClick={() => setExpandedId(open ? null : finding.id)}
                       >
                         <td className="px-3 py-2">
                           <div className="flex items-center gap-1.5">
@@ -253,7 +250,7 @@ export function NetworkDataQualityPanel({
                         </td>
                       </tr>
                       {open ? (
-                        <tr key={`${finding.id}-detail`} className="border-t border-border bg-surface-2/40">
+                        <tr className="border-t border-border bg-surface-2/40">
                           <td colSpan={6} className="px-3 py-3">
                             <p className="mb-2 text-xs text-muted">
                               رکوردهای درگیر — برای اصلاح روی هر مورد کلیک کنید:
@@ -274,7 +271,10 @@ export function NetworkDataQualityPanel({
                                         {recordLabel(rec)}
                                       </span>
                                       {rec?.ip ? (
-                                        <span className="font-mono text-accent" dir="ltr">
+                                        <span
+                                          className="font-mono text-accent"
+                                          dir="ltr"
+                                        >
                                           {rec.ip}
                                         </span>
                                       ) : null}
@@ -301,7 +301,7 @@ export function NetworkDataQualityPanel({
                           </td>
                         </tr>
                       ) : null}
-                    </>
+                    </Fragment>
                   );
                 })}
               </tbody>
@@ -314,7 +314,11 @@ export function NetworkDataQualityPanel({
             <p className="text-xs text-muted">
               {(filtered.length - visible.length).toLocaleString("fa-IR")} یافته دیگر
             </p>
-            <Button variant="secondary" size="sm" onClick={() => setLimit((n) => n + 20)}>
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={() => setLimit((n) => n + 20)}
+            >
               نمایش بیشتر
             </Button>
           </div>
