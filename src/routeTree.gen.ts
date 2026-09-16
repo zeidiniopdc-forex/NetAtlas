@@ -16,6 +16,8 @@ import { Route as FirewallRouteImport } from './routes/firewall'
 import { Route as InventoryRouteImport } from './routes/inventory'
 import { Route as SearchRouteImport } from './routes/search'
 import { Route as InventoryIdRouteImport } from './routes/inventory.$id'
+import { Route as LoginRouteImport } from './routes/login'
+import { Route as UsersRouteImport } from './routes/users'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -52,6 +54,16 @@ const InventoryIdRoute = InventoryIdRouteImport.update({
   path: '/$id',
   getParentRoute: () => InventoryRoute,
 } as any)
+const LoginRoute = LoginRouteImport.update({
+  id: '/login',
+  path: '/login',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const UsersRoute = UsersRouteImport.update({
+  id: '/users',
+  path: '/users',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -61,6 +73,8 @@ export interface FileRoutesByFullPath {
   '/inventory': typeof InventoryRouteWithChildren
   '/search': typeof SearchRoute
   '/inventory/$id': typeof InventoryIdRoute
+  '/login': typeof LoginRoute
+  '/users': typeof UsersRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -70,6 +84,8 @@ export interface FileRoutesByTo {
   '/inventory': typeof InventoryRouteWithChildren
   '/search': typeof SearchRoute
   '/inventory/$id': typeof InventoryIdRoute
+  '/login': typeof LoginRoute
+  '/users': typeof UsersRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -80,6 +96,8 @@ export interface FileRoutesById {
   '/inventory': typeof InventoryRouteWithChildren
   '/search': typeof SearchRoute
   '/inventory/$id': typeof InventoryIdRoute
+  '/login': typeof LoginRoute
+  '/users': typeof UsersRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -91,6 +109,8 @@ export interface FileRouteTypes {
     | '/inventory'
     | '/search'
     | '/inventory/$id'
+    | '/login'
+    | '/users'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -100,6 +120,8 @@ export interface FileRouteTypes {
     | '/inventory'
     | '/search'
     | '/inventory/$id'
+    | '/login'
+    | '/users'
   id:
     | '__root__'
     | '/'
@@ -109,6 +131,8 @@ export interface FileRouteTypes {
     | '/inventory'
     | '/search'
     | '/inventory/$id'
+    | '/login'
+    | '/users'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -118,6 +142,8 @@ export interface RootRouteChildren {
   FirewallRoute: typeof FirewallRoute
   InventoryRoute: typeof InventoryRouteWithChildren
   SearchRoute: typeof SearchRoute
+  LoginRoute: typeof LoginRoute
+  UsersRoute: typeof UsersRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -171,6 +197,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof InventoryIdRouteImport
       parentRoute: typeof InventoryRoute
     }
+    '/login': {
+      id: '/login'
+      path: '/login'
+      fullPath: '/login'
+      preLoaderRoute: typeof LoginRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/users': {
+      id: '/users'
+      path: '/users'
+      fullPath: '/users'
+      preLoaderRoute: typeof UsersRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -193,6 +233,8 @@ const rootRouteChildren: RootRouteChildren = {
   FirewallRoute: FirewallRoute,
   InventoryRoute: InventoryRouteWithChildren,
   SearchRoute: SearchRoute,
+  LoginRoute: LoginRoute,
+  UsersRoute: UsersRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

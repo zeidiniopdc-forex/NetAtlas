@@ -70,7 +70,7 @@ function LoginPage() {
               {login.isPending ? "در حال ورود…" : "ورود"}
             </Button>
             <p className="text-center text-[11px] text-faint">
-              کاربر پیش‌فرض ادمین: <span className="font-mono" dir="ltr">admin / Admin@123</span>
+              در صورت فراموشی رمز عبور، مدیر سامانه می‌تواند رمز کاربر را از بخش مدیریت کاربران تغییر دهد.
               <br />
               ساخته‌شده توسط {APP_AUTHOR}
             </p>

@@ -6,42 +6,52 @@ export const APP_AUTHOR = "امین زیدی";
 export const APP_AUTHOR_ROLE = "سازنده و توسعه‌دهنده";
 export const APP_COPYRIGHT = "© امین زیدی — تمام حقوق محفوظ است";
 
-export type FieldKey = Exclude<
-  keyof InventoryRecord,
-  "id" | "firewallAccess" | "createdAt" | "updatedAt"
->;
+export type FieldKey = Exclude<keyof InventoryRecord, "id" | "firewallAccess" | "createdAt" | "updatedAt">;
 
 export const FIELD_LABELS: Record<FieldKey | "firewallAccess", string> = {
+  site: "سایت / محل",
+  building: "ساختمان / ستاد / ناحیه",
   floor: "طبقه",
   room: "شماره اتاق",
+  serverRoom: "اتاق سرور",
+  rack: "رک",
   userName: "نام کاربر",
   nodeRow: "ردیف نود",
   nodeNumber: "شماره نود",
+  wallNodeLabel: "برچسب نود دیواری",
   patchPanel: "پچ پانل",
   patchPort: "پورت پچ پنل",
   patchRackPosition: "موقعیت پچ پنل در رک",
   switchName: "سوئیچ",
   switchInterface: "اینترفیس سوئیچ",
+  switchManagementIp: "IP مدیریتی سوئیچ",
+  routerName: "روتر",
+  routerInterface: "اینترفیس روتر",
   cableNumber: "شماره کابل",
   computerName: "نام کامپیوتر",
   windowsUsername: "نام کاربری ویندوز",
-  ip: "IP",
+  ip: "IP سیستم",
   vlan: "VLAN",
-  network: "شبکه",
+  network: "نوع شبکه",
   status: "ف / غ",
   notes: "توضیحات",
   firewallAccess: "دسترسی‌های فایروال",
 };
 
 export const ENTITY_LABELS: Record<EntityKind, string> = {
+  site: "سایت",
+  building: "ساختمان",
   floor: "طبقه",
   room: "اتاق",
+  serverRoom: "اتاق سرور",
+  rack: "رک",
   user: "کاربر",
   node: "نود",
   patch: "پچ پنل",
   port: "پورت",
   switch: "سوئیچ",
   iface: "اینترفیس",
+  router: "روتر",
   cable: "کابل",
   computer: "کامپیوتر",
   windows: "ویندوز",
@@ -52,30 +62,30 @@ export const ENTITY_LABELS: Record<EntityKind, string> = {
   status: "وضعیت",
 };
 
-export const STATUS_LABEL: Record<RecordStatus, string> = {
-  active: "فعال",
-  inactive: "غیرفعال",
-};
-
+export const STATUS_LABEL: Record<RecordStatus, string> = { active: "فعال", inactive: "غیرفعال" };
 export const PROTOCOL_OPTIONS: FirewallProtocol[] = ["TCP", "UDP", "ICMP", "ANY"];
 export const ACTION_OPTIONS: FirewallAction[] = ["allow", "deny"];
-
-export const ACTION_LABEL: Record<FirewallAction, string> = {
-  allow: "اجازه",
-  deny: "مسدود",
-};
+export const ACTION_LABEL: Record<FirewallAction, string> = { allow: "اجازه", deny: "مسدود" };
 
 export const EMPTY_RECORD: Omit<InventoryRecord, "id" | "createdAt" | "updatedAt"> = {
+  site: "",
+  building: "",
   floor: "",
   room: "",
+  serverRoom: "",
+  rack: "",
   userName: "",
   nodeRow: "",
   nodeNumber: "",
+  wallNodeLabel: "",
   patchPanel: "",
   patchPort: "",
   patchRackPosition: "",
   switchName: "",
   switchInterface: "",
+  switchManagementIp: "",
+  routerName: "",
+  routerInterface: "",
   cableNumber: "",
   computerName: "",
   windowsUsername: "",
@@ -88,40 +98,17 @@ export const EMPTY_RECORD: Omit<InventoryRecord, "id" | "createdAt" | "updatedAt
 };
 
 export const TABLE_COLUMNS: FieldKey[] = [
-  "floor",
-  "room",
-  "userName",
-  "computerName",
-  "ip",
-  "vlan",
-  "switchName",
-  "switchInterface",
-  "patchPanel",
-  "patchPort",
-  "status",
+  "building", "floor", "room", "userName", "computerName", "ip", "vlan", "switchName", "switchInterface", "patchPanel", "patchPort", "status",
 ];
 
 export function statusFromCell(raw: string): RecordStatus {
   const n = normalizeFa(raw);
   if (!n) return "active";
-  if (
-    n === "غ" ||
-    n.includes("غیرفعال") ||
-    n.includes("غيرفعال") ||
-    n === "inactive" ||
-    n === "no" ||
-    n === "0" ||
-    n === "off" ||
-    n === "down"
-  ) {
-    return "inactive";
-  }
+  if (n === "غ" || n.includes("غیرفعال") || n.includes("غيرفعال") || n === "inactive" || n === "no" || n === "0" || n === "off" || n === "down") return "inactive";
   return "active";
 }
 
-export function statusToCell(status: RecordStatus) {
-  return status === "active" ? "ف" : "غ";
-}
+export function statusToCell(status: RecordStatus) { return status === "active" ? "ف" : "غ"; }
 
 export function normalizeFa(input: string) {
   return input
