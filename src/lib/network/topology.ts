@@ -17,6 +17,16 @@ export type TopologyLink = {
   updatedAt: string;
 };
 
+export type TopologyTraceResult = {
+  found: boolean;
+  start: TopologyEndpoint;
+  destination?: TopologyEndpoint;
+  path: TopologyEndpoint[];
+  links: TopologyLink[];
+  hops: number;
+  downLinksEncountered: TopologyLink[];
+};
+
 export const endpointKindLabels: Record<TopologyEndpointKind, string> = {
   wallNode: "Wall Node", patchPanel: "Patch Panel", switchPort: "Switch / Port", routerInterface: "Router / Interface", firewall: "Firewall", vlan: "VLAN",
 };
@@ -25,34 +35,72 @@ export const linkTypeLabels: Record<TopologyLinkType, string> = { copper: "Coppe
 export function normalizeTopologyEndpoint(e: TopologyEndpoint): TopologyEndpoint {
   return { kind: e.kind, ref: e.ref.trim(), label: (e.label || e.ref).trim() };
 }
+export function endpointKey(e: TopologyEndpoint) { return `${e.kind}:${e.ref}`; }
 export function topologyKey(a: TopologyEndpoint, b: TopologyEndpoint) {
-  const x = `${a.kind}:${a.ref}`;
-  const y = `${b.kind}:${b.ref}`;
+  const x = endpointKey(a); const y = endpointKey(b);
   return x < y ? `${x}|${y}` : `${y}|${x}`;
 }
-export function buildTopologyGraph(links: TopologyLink[]) {
+
+export function buildTopologyGraph(links: TopologyLink[], includeDown = false) {
   const graph = new Map<string, { endpoint: TopologyEndpoint; link: TopologyLink }[]>();
   for (const link of links) {
+    if (!includeDown && link.status !== "active") continue;
     const a = normalizeTopologyEndpoint(link.endpointA); const b = normalizeTopologyEndpoint(link.endpointB);
-    const ak = `${a.kind}:${a.ref}`; const bk = `${b.kind}:${b.ref}`;
+    const ak = endpointKey(a); const bk = endpointKey(b);
     if (!graph.has(ak)) graph.set(ak, []); if (!graph.has(bk)) graph.set(bk, []);
     graph.get(ak)!.push({ endpoint: b, link }); graph.get(bk)!.push({ endpoint: a, link });
   }
   return graph;
 }
-export function traceTopology(links: TopologyLink[], start: TopologyEndpoint) {
-  const graph = buildTopologyGraph(links); const startKey = `${start.kind}:${start.ref}`;
-  const queue = [{ key: startKey, endpoint: start, path: [start], links: [] as TopologyLink[] }]; const seen = new Set([startKey]);
+
+export function traceTopology(links: TopologyLink[], start: TopologyEndpoint, destination?: TopologyEndpoint): TopologyTraceResult {
+  const normalizedStart = normalizeTopologyEndpoint(start);
+  const normalizedDestination = destination ? normalizeTopologyEndpoint(destination) : undefined;
+  const destinationKey = normalizedDestination ? endpointKey(normalizedDestination) : undefined;
+  const graph = buildTopologyGraph(links);
+  const startKey = endpointKey(normalizedStart);
+  if (destinationKey && startKey === destinationKey) return { found: true, start: normalizedStart, destination: normalizedDestination, path: [normalizedStart], links: [], hops: 0, downLinksEncountered: [] };
+
+  const queue: Array<{ key: string; endpoint: TopologyEndpoint; path: TopologyEndpoint[]; links: TopologyLink[] }> = [{ key: startKey, endpoint: normalizedStart, path: [normalizedStart], links: [] }];
+  const seen = new Set([startKey]);
   while (queue.length) {
     const current = queue.shift()!;
-    if (current.links.length > 0 && current.path.length >= 2 && current.key !== startKey) return current;
     for (const edge of graph.get(current.key) ?? []) {
-      const key = `${edge.endpoint.kind}:${edge.endpoint.ref}`;
-      if (!seen.has(key)) { seen.add(key); queue.push({ key, endpoint: edge.endpoint, path: [...current.path, edge.endpoint], links: [...current.links, edge.link] }); }
+      const key = endpointKey(edge.endpoint);
+      if (seen.has(key)) continue;
+      const nextPath = [...current.path, edge.endpoint];
+      const nextLinks = [...current.links, edge.link];
+      if (!destinationKey || key === destinationKey) return { found: true, start: normalizedStart, destination: edge.endpoint, path: nextPath, links: nextLinks, hops: nextLinks.length, downLinksEncountered: [] };
+      seen.add(key);
+      queue.push({ key, endpoint: edge.endpoint, path: nextPath, links: nextLinks });
     }
   }
-  return { key: startKey, endpoint: start, path: [start], links: [] as TopologyLink[] };
+
+  const downGraph = buildTopologyGraph(links, true);
+  const downLinksEncountered = (downGraph.get(startKey) ?? []).filter((x) => x.link.status === "down").map((x) => x.link);
+  return { found: false, start: normalizedStart, destination: normalizedDestination, path: [normalizedStart], links: [], hops: 0, downLinksEncountered };
 }
+
+export function traceAllReachable(links: TopologyLink[], start: TopologyEndpoint): TopologyTraceResult[] {
+  const normalizedStart = normalizeTopologyEndpoint(start);
+  const graph = buildTopologyGraph(links);
+  const startKey = endpointKey(normalizedStart);
+  const queue: Array<{ key: string; endpoint: TopologyEndpoint; path: TopologyEndpoint[]; links: TopologyLink[] }> = [{ key: startKey, endpoint: normalizedStart, path: [normalizedStart], links: [] }];
+  const seen = new Set([startKey]);
+  const results: TopologyTraceResult[] = [];
+  while (queue.length) {
+    const current = queue.shift()!;
+    if (current.key !== startKey) results.push({ found: true, start: normalizedStart, destination: current.endpoint, path: current.path, links: current.links, hops: current.links.length, downLinksEncountered: [] });
+    for (const edge of graph.get(current.key) ?? []) {
+      const key = endpointKey(edge.endpoint);
+      if (seen.has(key)) continue;
+      seen.add(key);
+      queue.push({ key, endpoint: edge.endpoint, path: [...current.path, edge.endpoint], links: [...current.links, edge.link] });
+    }
+  }
+  return results;
+}
+
 export function findTopologyIssues(links: TopologyLink[]) {
   const issues: string[] = []; const seen = new Set<string>();
   for (const l of links) {
