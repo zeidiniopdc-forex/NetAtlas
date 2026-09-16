@@ -1,6 +1,6 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { ArrowRight, Pencil, Trash2 } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import {
   ConfigSnippet,
@@ -12,19 +12,38 @@ import { RecordForm } from "@/components/inventory/record-form";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { STATUS_LABEL } from "@/lib/inventory/fields";
 import { useInventory, useInventoryMutations } from "@/lib/inventory/query";
 
-export const Route = createFileRoute("/inventory/$id")({ component: RecordPage });
+type RecordSearch = {
+  edit?: boolean;
+};
+
+export const Route = createFileRoute("/inventory/$id")({
+  validateSearch: (search: Record<string, unknown>): RecordSearch => ({
+    edit: search.edit === true || search.edit === "true" || search.edit === "1",
+  }),
+  component: RecordPage,
+});
 
 function RecordPage() {
   const { id } = Route.useParams();
+  const { edit: editFromSearch } = Route.useSearch();
   const { data, isLoading } = useInventory();
   const { upsert, remove } = useInventoryMutations();
   const navigate = useNavigate();
-  const [edit, setEdit] = useState(false);
+  const [edit, setEdit] = useState(Boolean(editFromSearch));
   const record = data?.records.find((r) => r.id === id);
+
+  useEffect(() => {
+    if (editFromSearch) setEdit(true);
+  }, [editFromSearch, id]);
 
   if (isLoading) return <p className="text-sm text-muted">در حال بارگذاری…</p>;
   if (!record) {
@@ -35,11 +54,26 @@ function RecordPage() {
     );
   }
 
+  const closeEdit = (open: boolean) => {
+    setEdit(open);
+    if (!open && editFromSearch) {
+      void navigate({
+        to: "/inventory/$id",
+        params: { id },
+        search: {},
+        replace: true,
+      });
+    }
+  };
+
   return (
     <div className="flex flex-col gap-5">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
-          <Link to="/inventory" className="inline-flex items-center gap-1 text-sm text-muted hover:text-fg">
+          <Link
+            to="/inventory"
+            className="inline-flex items-center gap-1 text-sm text-muted hover:text-fg"
+          >
             <ArrowRight className="size-4" />
             موجودی
           </Link>
@@ -51,7 +85,7 @@ function RecordPage() {
           </p>
           <div className="mt-2 flex flex-wrap gap-2">
             <Badge variant={record.status === "active" ? "ok" : "danger"}>
-              {STATUS_LABEL[record.status]}
+              {STATUS_LABEL[record.status === "inactive" ? "inactive" : "active"]}
             </Badge>
             {record.vlan ? <Badge variant="accent">{record.vlan}</Badge> : null}
             {record.switchName ? <Badge>{record.switchName}</Badge> : null}
@@ -102,7 +136,8 @@ function RecordPage() {
       <Card className="rounded-lg">
         <CardHeader>
           <CardTitle>
-            دسترسی فایروال برای {record.ip || "این نود"} — کاربر {record.userName || "نامشخص"}
+            دسترسی فایروال برای {record.ip || "این نود"} — کاربر{" "}
+            {record.userName || "نامشخص"}
           </CardTitle>
         </CardHeader>
         <CardContent>
@@ -119,7 +154,7 @@ function RecordPage() {
         </CardContent>
       </Card>
 
-      <Dialog open={edit} onOpenChange={setEdit}>
+      <Dialog open={edit} onOpenChange={closeEdit}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>ویرایش رکورد</DialogTitle>
@@ -127,12 +162,12 @@ function RecordPage() {
           <RecordForm
             initial={record}
             busy={upsert.isPending}
-            onCancel={() => setEdit(false)}
+            onCancel={() => closeEdit(false)}
             onSubmit={(next) => {
               upsert.mutate(next, {
                 onSuccess: () => {
                   toast.success("تغییرات روی JSON سرور ذخیره شد");
-                  setEdit(false);
+                  closeEdit(false);
                 },
                 onError: () => toast.error("ذخیره انجام نشد"),
               });
