@@ -48,8 +48,11 @@ function recordLabel(record?: InventoryRecord) {
 
 export function NetworkDataQualityPanel({
   records,
+  onEditRecord,
 }: {
   records: InventoryRecord[];
+  /** When set, edit opens on the same page (preferred). */
+  onEditRecord?: (record: InventoryRecord) => void;
 }) {
   const findings = useMemo(() => analyzeDataQuality(records), [records]);
   const summary = useMemo(
@@ -74,6 +77,12 @@ export function NetworkDataQualityPanel({
   }, [findings, filter]);
 
   const visible = filtered.slice(0, limit);
+
+  const openEdit = (id: string) => {
+    const rec = byId.get(id);
+    if (!rec) return;
+    if (onEditRecord) onEditRecord(rec);
+  };
 
   return (
     <Card className="rounded-xl">
@@ -220,16 +229,28 @@ export function NetworkDataQualityPanel({
                             onClick={(e) => e.stopPropagation()}
                           >
                             {firstId ? (
-                              <Button asChild variant="ghost" size="sm">
-                                <Link
-                                  to="/inventory/$id"
-                                  params={{ id: firstId }}
-                                  search={{ edit: true }}
+                              onEditRecord ? (
+                                <Button
+                                  type="button"
+                                  variant="secondary"
+                                  size="sm"
+                                  onClick={() => openEdit(firstId)}
                                 >
                                   <Pencil className="size-3.5" />
                                   ویرایش
-                                </Link>
-                              </Button>
+                                </Button>
+                              ) : (
+                                <Button asChild variant="secondary" size="sm">
+                                  <Link
+                                    to="/inventory/$id"
+                                    params={{ id: firstId }}
+                                    search={{ edit: true }}
+                                  >
+                                    <Pencil className="size-3.5" />
+                                    ویرایش
+                                  </Link>
+                                </Button>
+                              )
                             ) : null}
                             <Button
                               variant="ghost"
@@ -253,11 +274,27 @@ export function NetworkDataQualityPanel({
                         <tr className="border-t border-border bg-surface-2/40">
                           <td colSpan={6} className="px-3 py-3">
                             <p className="mb-2 text-xs text-muted">
-                              رکوردهای درگیر — برای اصلاح روی هر مورد کلیک کنید:
+                              رکوردهای درگیر — برای اصلاح روی ویرایش کلیک کنید:
                             </p>
                             <div className="flex flex-col gap-1.5">
                               {finding.recordIds.map((id) => {
                                 const rec = byId.get(id);
+                                if (onEditRecord) {
+                                  return (
+                                    <button
+                                      key={id}
+                                      type="button"
+                                      onClick={() => openEdit(id)}
+                                      className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-border bg-surface px-3 py-2 text-start text-xs transition hover:border-accent/40 hover:bg-accent/5"
+                                    >
+                                      <RecordMeta rec={rec} />
+                                      <span className="inline-flex items-center gap-1 text-accent">
+                                        <Pencil className="size-3.5" />
+                                        ویرایش
+                                      </span>
+                                    </button>
+                                  );
+                                }
                                 return (
                                   <Link
                                     key={id}
@@ -266,30 +303,7 @@ export function NetworkDataQualityPanel({
                                     search={{ edit: true }}
                                     className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-border bg-surface px-3 py-2 text-xs transition hover:border-accent/40 hover:bg-accent/5"
                                   >
-                                    <div className="flex flex-wrap items-center gap-2">
-                                      <span className="font-medium text-fg">
-                                        {recordLabel(rec)}
-                                      </span>
-                                      {rec?.ip ? (
-                                        <span
-                                          className="font-mono text-accent"
-                                          dir="ltr"
-                                        >
-                                          {rec.ip}
-                                        </span>
-                                      ) : null}
-                                      {rec?.switchName ? (
-                                        <span className="text-muted">
-                                          {rec.switchName}
-                                          {rec.switchInterface
-                                            ? ` / ${rec.switchInterface}`
-                                            : ""}
-                                        </span>
-                                      ) : null}
-                                      {rec?.vlan ? (
-                                        <Badge variant="outline">{rec.vlan}</Badge>
-                                      ) : null}
-                                    </div>
+                                    <RecordMeta rec={rec} />
                                     <span className="inline-flex items-center gap-1 text-accent">
                                       <Pencil className="size-3.5" />
                                       ویرایش
@@ -325,6 +339,26 @@ export function NetworkDataQualityPanel({
         ) : null}
       </CardContent>
     </Card>
+  );
+}
+
+function RecordMeta({ rec }: { rec?: InventoryRecord }) {
+  return (
+    <div className="flex flex-wrap items-center gap-2">
+      <span className="font-medium text-fg">{recordLabel(rec)}</span>
+      {rec?.ip ? (
+        <span className="font-mono text-accent" dir="ltr">
+          {rec.ip}
+        </span>
+      ) : null}
+      {rec?.switchName ? (
+        <span className="text-muted">
+          {rec.switchName}
+          {rec.switchInterface ? ` / ${rec.switchInterface}` : ""}
+        </span>
+      ) : null}
+      {rec?.vlan ? <Badge variant="outline">{rec.vlan}</Badge> : null}
+    </div>
   );
 }
 

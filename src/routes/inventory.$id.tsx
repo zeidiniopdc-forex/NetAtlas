@@ -27,18 +27,23 @@ type RecordSearch = {
 
 export const Route = createFileRoute("/inventory/$id")({
   validateSearch: (search: Record<string, unknown>): RecordSearch => ({
-    edit: search.edit === true || search.edit === "true" || search.edit === "1",
+    edit:
+      search.edit === true ||
+      search.edit === "true" ||
+      search.edit === "1" ||
+      search.edit === 1,
   }),
   component: RecordPage,
 });
 
 function RecordPage() {
   const { id } = Route.useParams();
-  const { edit: editFromSearch } = Route.useSearch();
+  const search = Route.useSearch();
+  const editFromSearch = Boolean(search.edit);
   const { data, isLoading } = useInventory();
   const { upsert, remove } = useInventoryMutations();
   const navigate = useNavigate();
-  const [edit, setEdit] = useState(Boolean(editFromSearch));
+  const [edit, setEdit] = useState(false);
   const record = data?.records.find((r) => r.id === id);
 
   useEffect(() => {
@@ -92,11 +97,12 @@ function RecordPage() {
           </div>
         </div>
         <div className="flex gap-2">
-          <Button variant="secondary" onClick={() => setEdit(true)}>
+          <Button type="button" variant="secondary" onClick={() => setEdit(true)}>
             <Pencil className="size-4" />
             ویرایش
           </Button>
           <Button
+            type="button"
             variant="outline"
             onClick={() => {
               if (!confirm("این رکورد از فایل JSON سرور حذف شود؟")) return;
@@ -159,20 +165,23 @@ function RecordPage() {
           <DialogHeader>
             <DialogTitle>ویرایش رکورد</DialogTitle>
           </DialogHeader>
-          <RecordForm
-            initial={record}
-            busy={upsert.isPending}
-            onCancel={() => closeEdit(false)}
-            onSubmit={(next) => {
-              upsert.mutate(next, {
-                onSuccess: () => {
-                  toast.success("تغییرات روی JSON سرور ذخیره شد");
-                  closeEdit(false);
-                },
-                onError: () => toast.error("ذخیره انجام نشد"),
-              });
-            }}
-          />
+          {edit ? (
+            <RecordForm
+              key={record.id}
+              initial={record}
+              busy={upsert.isPending}
+              onCancel={() => closeEdit(false)}
+              onSubmit={(next) => {
+                upsert.mutate(next, {
+                  onSuccess: () => {
+                    toast.success("تغییرات روی JSON سرور ذخیره شد");
+                    closeEdit(false);
+                  },
+                  onError: () => toast.error("ذخیره انجام نشد"),
+                });
+              }}
+            />
+          ) : null}
         </DialogContent>
       </Dialog>
     </div>

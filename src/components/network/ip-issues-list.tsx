@@ -6,7 +6,13 @@ import { findIpIssues } from "@/lib/network/ipam";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
-export function IpIssuesList({ records }: { records: InventoryRecord[] }) {
+export function IpIssuesList({
+  records,
+  onEditRecord,
+}: {
+  records: InventoryRecord[];
+  onEditRecord?: (record: InventoryRecord) => void;
+}) {
   const issues = useMemo(() => findIpIssues(records), [records]);
   const byId = useMemo(() => {
     const map = new Map<string, InventoryRecord>();
@@ -44,6 +50,29 @@ export function IpIssuesList({ records }: { records: InventoryRecord[] }) {
             <div className="flex flex-col gap-1">
               {issue.recordIds.map((id) => {
                 const rec = byId.get(id);
+                const label =
+                  rec?.userName || rec?.computerName || id.slice(0, 8);
+                if (onEditRecord && rec) {
+                  return (
+                    <button
+                      key={id}
+                      type="button"
+                      onClick={() => onEditRecord(rec)}
+                      className="flex items-center justify-between gap-2 rounded-md bg-surface-2 px-2 py-1.5 text-start text-xs hover:bg-accent/10"
+                    >
+                      <span>
+                        {label}
+                        {rec.switchName ? (
+                          <span className="ms-2 text-muted">{rec.switchName}</span>
+                        ) : null}
+                      </span>
+                      <span className="inline-flex items-center gap-1 text-accent">
+                        <Pencil className="size-3" />
+                        ویرایش
+                      </span>
+                    </button>
+                  );
+                }
                 return (
                   <Link
                     key={id}
@@ -53,7 +82,7 @@ export function IpIssuesList({ records }: { records: InventoryRecord[] }) {
                     className="flex items-center justify-between gap-2 rounded-md bg-surface-2 px-2 py-1.5 text-xs hover:bg-accent/10"
                   >
                     <span>
-                      {rec?.userName || rec?.computerName || id.slice(0, 8)}
+                      {label}
                       {rec?.switchName ? (
                         <span className="ms-2 text-muted">{rec.switchName}</span>
                       ) : null}
